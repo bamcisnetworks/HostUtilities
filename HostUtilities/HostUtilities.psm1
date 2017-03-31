@@ -7906,6 +7906,94 @@ Function Enable-TaskSchedulerHistory {
     End{}
 }
 
+Function Get-CertificateSAN {
+	<#
+		.SYNOPSIS
+			The cmdlet gets the Subject Alternative Name (SAN) values from a certificate.
+
+		.DESCRIPTION
+			The cmdlet reviews a provided certificate and extracts the SAN values from the certificate
+			as an array of strings. If no SAN values exist, it returns an empty array.
+		
+		.PARAMETER CertificateHash
+			The certificate hash string or thumbprint value for the certificate to get SAN values for. This certificate
+			should be in the LocalMacine\My certificate store.
+
+		.PARAMETER Certificate
+			The X509Certificate2 object to get SAN values for.
+
+		.INPUTS
+			System.String, System.Security.Cryptography.X509Certificates.X509Certificate2
+		
+		.OUTPUTS
+			System.String[]
+
+		.EXAMPLE 
+			Get-CertificateSAN -CertificateHash 53A7B7B8F3EC7AC94E59EDAC82029F4D6AAB4E47
+
+			Gets the SAN values, if any, for the certificate with thumprint 53A7B7B8F3EC7AC94E59EDAC82029F4D6AAB4E47.
+
+		.NOTES
+			AUTHOR: Michael Haken
+			LAST UPDATE: 3/31/2017
+	#>
+	[CmdletBinding()]
+	Param(
+		[Parameter(ParameterSetName = "Hash", Mandatory = $true, ValueFromPipeline = $true)]
+		[ValidateNotNullOrEmpty()]
+		[System.String]$CertificateHash,
+
+		[Parameter(ParameterSetName = "Certificate", Mandatory = $true, ValueFromPipeline = $true)]
+		[ValidateNotNull()]
+		[System.Security.Cryptography.X509Certificates.X509Certificate2]$Certificate
+	)
+
+	Begin{
+	}
+
+	Process {
+        switch ($PSCmdlet.ParameterSetName)
+        {
+            "Hash" {
+                $Certificate = Get-Item -Path "Cert:\LocalMachine\My\$CertificateHash"
+                break
+            }
+            "Certificate" {
+                # Do nothing
+                break
+            }
+            default {
+                throw "Could not determine parameterset name"
+                break
+            }
+        }
+
+		if($Certificate -ne $null)
+		{
+			$Result = $Certificate.Extensions | Where-Object {$_.Oid.FriendlyName -match "subject alternative name"}
+			if ($Result -ne $null)
+			{
+				#Indicates if the return string should contain carriage returns
+				[System.Boolean]$MultiLine = $false
+				Write-Output -InputObject ($Result.Format($MultiLine).Split(",") | ForEach-Object {
+                    Write-Output -InputObject $_.Trim()
+                })
+			}
+			else
+			{
+				Write-Output -InputObject @()
+			}
+		}
+		else
+		{
+			throw "Certificate not found."
+		}
+	}
+
+	End {
+	}
+}
+
 $script:IPv6Configs = @(
 	[PSCustomObject]@{Name="IPv6 Disabled On All Interfaces";Value="0xFFFFFFFF"},
 	[PSCustomObject]@{Name="IPv6 Enabled only on tunnel interfaces";Value="0xFFFFFFFE"}, 
