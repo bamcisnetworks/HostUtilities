@@ -7994,6 +7994,218 @@ Function Get-CertificateSAN {
 	}
 }
 
+Function Get-DiskFree {
+	<#
+		.SYNOPSIS
+			The cmdlet implements many of the features of the *nix command "df" and retrieves information about logical drives.
+
+		.DESCRIPTION
+			The cmdlet gets disk information on a local or remote computer using the CIM interface. It can display the information as
+			a number of a specified block size, which defaults to 1K blocks, or in a more human readable format.
+		
+		.PARAMETER ComputerName
+			The name of the computer to get the information from. This defaults to the local computer.
+
+		.PARAMETER HumanReadable
+			Provides the data in a human readable format in terms of MB, GB, TB, etc.
+
+		.PARAMETER BlockSize
+			Specifies how the size, available, and used space are reported. This defaults to 1024 (1K) blocks. So, on a system that had 4KB of storage, the
+			Size parameter would report 4 for 1K blocks.
+
+		.PARAMETER Type
+			Specify the type of file system to report on. Only logical drives with this file system will be included. This cannot be specified if the
+			ExcludeType parameter is specified.
+
+		.PARAMETER ExcludeType
+			Specify the type of file system to not include in the results. Logical drives with this file system will not be included. This cannot be specified
+			if the Type parameter is specified.
+
+		.PARAMETER Credential
+			The credentials used to connect to the remote machine.
+
+		.INPUTS
+			System.String
+		
+		.OUTPUTS
+			System.Management.Automation.PSCustomObject
+
+		.EXAMPLE 
+			Get-DiskFree
+
+			Gets information about the logical drives on the local machine in terms of 1K blocks.
+
+		.EXAMPLE
+			Get-DiskFree -BlockSize 2048
+			
+			Gets information about the logical drives on the local machine in terms of 2K blocks.
+
+		.EXAMPLE
+			Get-DiskFree -HumanReadable
+			
+			Gets information about the logical drives on the local machine and presents the storage quantities in a human readable form.
+
+			This command could also have been run as df -h
+
+		.EXAMPLE
+			Get-DiskFree -Type NTFS
+	
+			Gets information about logical drives on the local machine that are formatted with NTFS and presents them in terms of 1K blocks.
+
+		.NOTES
+			AUTHOR: Michael Haken
+			LAST UPDATE: 4/20/2017
+	#>
+    [Alias("df")]
+    [CmdletBinding(DefaultParameterSetName = "blocks")]
+    Param(
+        [Parameter(ValueFromPipeline = $true)]
+        [ValidateNotNull()]
+        [System.String]$ComputerName,
+
+        [Parameter(ParameterSetName="human")]
+        [Alias("h")]
+        [switch]$HumanReadable,
+
+        [Parameter(ParameterSetName="blocks")]
+        [ValidateScript({
+            $_ % 1024 -eq 0
+        })]
+        [System.UInt32]$BlockSize = 1024,
+
+        [Parameter()]
+        [ValidateSet("FAT16", "FAT32", "NTFS", "CDFS", "ReFS", "ext3", "ext4", "HDFS")]
+        [ValidateScript({
+            -not $PSBoundParameters.ContainsKey("ExcludeType")
+        })]
+        [System.String]$Type,
+
+        [Parameter()]
+        [ValidateSet("FAT16", "FAT32", "NTFS", "CDFS", "ReFS", "ext3", "ext4", "HDFS")]
+        [ValidateScript({
+            -not $PSBoundParameters.ContainsKey("Type")
+        })]
+        [System.String]$ExcludeType,
+
+        [Parameter()]
+        [ValidateNotNull()]
+        [System.Management.Automation.Credential()]
+        [System.Management.Automation.PSCredential]$Credential = [System.Management.Automation.PSCredential]::Empty
+
+    )
+
+    Begin {
+        Function Format-FileSize {
+            Param (
+                [Parameter(Mandatory = $true, Position = 0, ValueFromPipeline = $true)]
+                [System.Int64]$Size
+            )
+
+            Begin {
+            }
+
+            Process {
+                [System.String]$private:Result = [System.String]::Empty
+
+                switch ($Size)
+                {
+                    {$_ -ge 1PB} {
+                        $private:Result = [System.String]::Format("{0:0.00}PB", $Size / 1PB)
+                        break
+                    }
+                    {$_ -ge 1TB} {
+                        $private:Result = [System.String]::Format("{0:0.00}TB", $Size / 1TB)
+                        break
+                    }
+                    {$_ -ge 1GB} {
+                        $private:Result = [System.String]::Format("{0:0.00}GB", $Size / 1GB)
+                        break
+                    }
+                    {$_ -ge 1MB} {
+                        $private:Result = [System.String]::Format("{0:0.00}MB", $Size / 1MB)
+                        break
+                    }
+                    {$_ -ge 1KB} {
+                        $private:Result = [System.String]::Format("{0:0.00}KB", $Size / 1KB)
+                        break
+                    }
+                    default {
+                        $private:Result = [System.String]::Format("{0:0.00}B", $Size)
+                        break
+                    }
+                }
+
+                Write-Output -InputObject $private:Result
+                
+            }
+
+            End {
+            }
+        }
+    }
+    
+    Process {
+        $Splat = @{}
+
+        if ($Credential -ne [System.Management.Automation.PSCredential]::Empty)
+        {
+            $Splat.Credential = $Credential
+        }
+
+        #Make sure the computer specified isn't the local machine
+        if (-not [System.String]::IsNullOrEmpty($ComputerName) -and $ComputerName.ToLower() -notin ("127.0.0.1", ".", "localhost", $env:COMPUTERNAME.ToLower()))
+        {
+            $Splat.ComputerName = $ComputerName
+        }
+
+        <#
+            https://msdn.microsoft.com/en-us/library/aa394173(v=vs.85).aspx
+            Drive Types
+
+            Unknown (0)
+            No Root Directory (1)
+            Removable Disk (2)
+            Local Disk (3)
+            Network Drive (4)
+            Compact Disc (5)
+            RAM Disk (6)
+
+            Only want to look at disks from 2 on that have a reported size
+            
+            The Windows Configuration Manager error code reports 0 when the device is working properly
+        #>
+        [Microsoft.Management.Infrastructure.CimInstance]$Result = Get-CimInstance -ClassName Win32_LogicalDisk -Filter "Size != Null AND DriveType >= 2 AND (ConfigManagerErrorCode = Null OR ConfigManagerErrorCode = 0)" @Splat
+
+        $FormatSplat = @{}
+
+        if ($PSBoundParameters.ContainsKey("BlockSize"))
+        {
+            $FormatSplat.BlockSize = $BlockSize
+        }
+
+        $Disks = $Result | Select-Object @{Name = "ComputerName"; Expression = {$_.SystemName}},
+                @{Name = "Vol"; Expression = {$_.DeviceID}},
+                @{Name = if ($HumanReadable) { "Size" } else { "$($BlockSize / 1KB)K-blocks" }; Expression = { if ($HumanReadable) { Format-FileSize -Size $_.Size } else {$_.Size / $BlockSize } }},
+                @{Name = "Used"; Expression = { if ($HumanReadable) { Format-FileSize -Size ($_.Size - $_.FreeSpace) } else { ($_.Size - $_.FreeSpace) / $BlockSize } }},
+                @{Name = "Avail"; Expression = { if ($HumanReadable) { Format-FileSize -Size ($_.FreeSpace) } else { $_.FreeSpace / $BlockSize } }},
+                @{Name = "Use%"; Expression = {[System.Math]::Round((($_.Size - $_.FreeSpace) / $_.Size) * 100)}},
+                @{Name = "FS"; Expression = {$_.FileSystem}},
+                @{Name = "Type"; Expression = {$_.Description}}
+                    
+        if ($PSBoundParameters.ContainsKey("Type"))
+        {
+            $Disks = $Disks | Where-Object {$_.FS -ieq $Type}
+        }
+
+        if ($PSBoundParameters.ContainsKey("ExcludeType"))
+        {
+            $Disks = $Disks | Where-Object {$_.FS -ine $ExcludeType}
+        }
+
+        Write-Output -InputObject $Disks
+    }
+}
+
 $script:IPv6Configs = @(
 	[PSCustomObject]@{Name="IPv6 Disabled On All Interfaces";Value="0xFFFFFFFF"},
 	[PSCustomObject]@{Name="IPv6 Enabled only on tunnel interfaces";Value="0xFFFFFFFE"}, 
