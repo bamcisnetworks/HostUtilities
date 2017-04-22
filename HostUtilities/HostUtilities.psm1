@@ -8206,6 +8206,119 @@ Function Get-DiskFree {
     }
 }
 
+Function Invoke-ForceDelete {
+		<#
+		.SYNOPSIS
+			The cmdlet forces the deletion of a file or folder and all of its content.
+
+		.DESCRIPTION
+			The cmdlet takes ownership of the file or content in a directory and grants the current user
+			full control permissions to the item. Then it deletes the item and performs this recursively
+			through the directory structure specified.
+		
+		.PARAMETER Path
+			The path to the file or folder to forcefully delete.
+
+		.PARAMETER Force
+			Ignores the confirmation to delete each item.
+
+		.INPUTS
+			System.String
+		
+		.OUTPUTS
+			None
+
+		.EXAMPLE 
+			Invoke-ForceDelete -Path c:\windows.old
+
+			Forcefully deletes the c:\windows.old directory and all of its content.
+
+		.NOTES
+			AUTHOR: Michael Haken
+			LAST UPDATE: 4/20/2017
+	#>
+	[CmdletBinding(SupportsShouldProcess = $true)]
+	Param(
+		[Parameter(Mandatory = $true, Position = 0, ValueFromPipeline = $true)]
+		[ValidateNotNullOrEmpty()]
+		[ValidateScript({ 
+            try {
+                Write-Output -InputObject (Test-Path -Path $Path -ErrorAction Stop)
+            }
+            catch [System.UnauthorizedAccessException] {
+                Write-Output $true
+            } 
+        })]
+		[System.String]$Path,
+
+		[Parameter()]
+		[switch]$Force
+	)
+
+	Begin {
+	}
+
+	Process {	
+        Write-Verbose -Message "Cmdlet called with path $Path"
+
+        #Take ownership of the provided path
+        & takeown.exe /F "$Path" | Out-Null
+
+		#Get current user
+        [System.Security.Principal.WindowsIdentity]$Current = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+
+		#Give full control to the user
+		& icacls.exe "$Path" /grant "*$($Current.User.Value):(F)" | Out-Null
+
+		#If it's a directory, remove all of the child content
+		if ([System.IO.Directory]::Exists($Path))
+		{
+            Write-Verbose -Message "The current path $Path is a directory."
+
+			Get-ChildItem -Path $Path -Force | ForEach-Object { 		
+                Invoke-ForceDelete -Path $_.FullName
+			}
+		}
+        
+        #Remove the specified path whether it is a folder or file
+		try
+        {	
+			if ($PSCmdlet.ShouldProcess($Path, "Delete") -or $Force)
+			{
+				Write-Host "Deleting $Path" 
+				Remove-Item -Path $Path -Confirm:$false -Force -Recurse
+
+				$Counter = 0
+
+				do 
+				{
+					try {
+						$Found = Test-Path -Path $Path -ErrorAction Stop
+					}
+					catch [System.UnauthorizedAccessException] {
+						$Found = $true
+					}
+
+					Start-Sleep -Milliseconds 100
+                
+				} while (($Found -eq $true) -and $Counter++ -lt 50)
+
+				if ($Counter -eq 50)
+				{
+					Write-Warning -Message "Timeout waiting for $Path to delete"
+				}
+			}
+        }
+        catch [Exception]
+        {
+            Write-Warning -Message $_.Exception.Message
+        }      
+	}
+
+	End {
+	}
+}
+
 $script:IPv6Configs = @(
 	[PSCustomObject]@{Name="IPv6 Disabled On All Interfaces";Value="0xFFFFFFFF"},
 	[PSCustomObject]@{Name="IPv6 Enabled only on tunnel interfaces";Value="0xFFFFFFFE"}, 

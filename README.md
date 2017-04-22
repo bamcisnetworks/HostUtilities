@@ -2,6 +2,9 @@
 
 ## Revision History
 
+### 1.0.0.14
+Added the Invoke-ForceDelete function.
+
 ### 1.0.0.13
 Added the Get-DiskFree function.
 
