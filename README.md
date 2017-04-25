@@ -2,6 +2,9 @@
 
 ## Revision History
 
+### 1.0.0.15
+Allowed paths supplied to Invoke-ForceDelete to be dot sourced or relative.
+
 ### 1.0.0.14
 Added the Invoke-ForceDelete function.
 

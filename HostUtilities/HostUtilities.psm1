@@ -8235,7 +8235,7 @@ Function Invoke-ForceDelete {
 
 		.NOTES
 			AUTHOR: Michael Haken
-			LAST UPDATE: 4/20/2017
+			LAST UPDATE: 4/24/2017
 	#>
 	[CmdletBinding(SupportsShouldProcess = $true)]
 	Param(
@@ -8259,6 +8259,9 @@ Function Invoke-ForceDelete {
 	}
 
 	Process {	
+		#Fix any paths that were fed in dot sourced
+		$Path = Resolve-Path -Path $Path
+
         Write-Verbose -Message "Cmdlet called with path $Path"
 
         #Take ownership of the provided path
