@@ -2,6 +2,9 @@
 
 ## Revision History
 
+### 1.0.0.17
+Updated manifest file.
+
 ### 1.0.0.16
 Updated the Convert-SecureStringToString cmdlet and added the Invoke-Using cmdlet.
 
