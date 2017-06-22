@@ -5813,38 +5813,38 @@ Function Convert-SecureStringToString {
 			Converts the secure string created from the text "test" back to plain text.
 
 		.NOTES
-			None
+			AUTHOR: Michael Haken
+			LAST UPDATE: 6/21/2017
 	#>
 	[CmdletBinding()]
     Param(
-        [Parameter(Position=0,ValueFromPipeline=$true,Mandatory=$true)]
-        [SecureString]$SecureString
+        [Parameter(Position = 0, ValueFromPipeline = $true, Mandatory = $true)]
+        [System.Security.SecureString]$SecureString
     )
 
     Begin {}
 
-    Process {
-        $Marshal = [System.Runtime.InteropServices.Marshal]   
-        $Password = [System.String]::Empty
+    Process { 
+        [System.String]$PlainText = [System.String]::Empty
+        [System.IntPtr]$IntPtr = [System.IntPtr]::Zero
 
         try 
         {     
-            $IntPtr = $Marshal::SecureStringToBSTR($SecureString)     
-            $Password = $Marshal::PtrToStringAuto($IntPtr)   
+            $IntPtr = [System.Runtime.InteropServices.Marshal]::SecureStringToGlobalAllocUnicode($SecureString)     
+            $PlainText = [System.Runtime.InteropServices.Marshal]::PtrToStringUni($IntPtr)   
         }   
         finally 
         {     
-            if ($IntPtr -ne $null) 
+            if ($IntPtr -ne $null -and $IntPtr -ne [System.IntPtr]::Zero) 
 			{       
-                $Marshal::ZeroFreeBSTR($IntPtr)     
+                [System.Runtime.InteropServices.Marshal]::ZeroFreeGlobalAllocUnicode($IntPtr)     
             }   
         }
 
-		Write-Output -InputObject $Password
+		Write-Output -InputObject $PlainText
     }
 
-    End {
-        
+    End {      
     }
 }
 
@@ -8320,6 +8320,75 @@ Function Invoke-ForceDelete {
 
 	End {
 	}
+}
+
+Function Invoke-Using {
+    <#
+        .SYNOPSIS
+            Provides a C#-like using() block to automatically handle disposing IDisposable objects.
+
+        .DESCRIPTION
+            The cmdlet takes an InputObject that should be an IDisposable, executes the ScriptBlock, then disposes the object.
+
+        .PARAMETER InputObject
+            The object that needs to be disposed of after running the scriptblock.
+
+        .PARAMETER ScriptBlock
+            The scriptblock to execute with the "using" variable.
+
+        .EXAMPLE
+            Invoke-Using ([System.IO.StreamWriter]$Writer = New-Object -TypeName System.IO.StreamWriter([System.Console]::OpenStandardOutput())) {
+                $Writer.AutoFlush = $true
+                [System.Console]::SetOut($Writer)
+                $Writer.Write("This is a test.")
+            }
+
+            The StreamWriter is automatically disposed of after the script block is executed. Future calls to $Writer would fail. Please notice
+            that the open "{" bracket needs to be on the same line as the cmdlet.
+
+        .INPUTS
+            System.Management.Automation.ScriptBlock
+
+        .OUTPUTS
+            None
+
+        .NOTES
+            AUTHOR: Michael Haken
+			LAST UPDATE: 6/21/2017
+
+    #>
+    [CmdletBinding()]
+    Param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
+        [AllowEmptyCollection()]
+        [AllowNull()]
+        [System.Object]$InputObject,
+ 
+        [Parameter(Mandatory = $true, ValueFromPipeline = $true)]
+        [System.Management.Automation.ScriptBlock]$ScriptBlock
+    )
+    
+    Begin {
+    }
+    
+    Process 
+    {       
+        try
+        {
+            & $ScriptBlock
+        }
+        finally
+        {
+            if ($InputObject -ne $null -and $InputObject -is [System.IDisposable])
+            {
+                $InputObject.Dispose()
+            }
+        }
+    }
+
+    End {
+    }
 }
 
 $script:IPv6Configs = @(
