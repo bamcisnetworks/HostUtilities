@@ -2,6 +2,9 @@
 
 ## Revision History
 
+### 1.1.0.1
+Added the Invoke-WmiRepositoryRebuild cmdlet.
+
 ### 1.1.0.0
 Updated the Start-ProcessWait cmdlet and moved the ESENT cmdlets to their own module, which is now a dependency for this module.
 

@@ -7526,6 +7526,32 @@ Function Invoke-Using {
     }
 }
 
+Function Invoke-WmiRepositoryRebuild {
+	[CmdletBinding()]
+	Param()
+
+	Begin {
+	}
+
+	Process {
+		Get-ChildItem -Path "$env:SystemRoot\System32\wbem\*" -Include @("*.mof") -Exclude @("*uninstall*") | ForEach-Object {
+			$Result = & $env:SystemRoot\System32\wbem\mofcomp.exe $_.FullName
+
+			[System.String]$Message = ([System.String]::Join("`r`n", $Result))
+
+			if ($Message -ilike "*An error occurred*") {
+                Write-Error -Message $Message -Category FromStdErr -TargetObject $_.FullName
+            }
+			else {
+				Write-Verbose -Message ([System.String]::Join("`r`n", $Result))
+			}
+		}
+	}
+
+	End {
+	}
+}
+
 $script:IPv6Configs = @(
 	[PSCustomObject]@{Name="IPv6 Disabled On All Interfaces";Value="0xFFFFFFFF"},
 	[PSCustomObject]@{Name="IPv6 Enabled only on tunnel interfaces";Value="0xFFFFFFFE"}, 
