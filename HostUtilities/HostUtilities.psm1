@@ -4090,7 +4090,7 @@ Function ForEach-ObjectParallel {
 		{
 			Write-Progress -Activity "Waiting for async tasks" `
 						-PercentComplete ((($TotalJobs - $Jobs.Count) / $TotalJobs) * 100) `
-						-Status ( ($TotalJobs - $Jobs.Count).ToString()  + " of " + $Jobs.Count.ToString() + " completed")
+						-Status ( ($TotalJobs - $Jobs.Count).ToString() + " of $TotalJobs completed, $($Jobs.Count) remaining")
 
 			foreach($Job in ($Jobs | Where-Object {$_.Handle.IsCompleted -eq $true}))
 			{
@@ -4101,6 +4101,8 @@ Function ForEach-ObjectParallel {
 
 			Start-Sleep -Milliseconds $WaitTime
 		}
+
+		Write-Progress -Activity "Waiting for async tasks" -Completed
 
 		$RunspacePool.Close() | Out-Null
 		$RunspacePool.Dispose() | Out-Null

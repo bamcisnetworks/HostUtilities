@@ -2,6 +2,9 @@
 
 ## Revision History
 
+### 1.1.0.2
+Updated the progress notification for ForEach-ObjectParallel.
+
 ### 1.1.0.1
 Added the Invoke-WmiRepositoryRebuild cmdlet.
 
