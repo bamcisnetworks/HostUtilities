@@ -2,6 +2,9 @@
 
 ## Revision History
 
+### 1.1.1.1
+Added the ConvertTo-Hashtable cmdlet.
+
 ### 1.1.1.0
 Added the Merge-Hashtables cmdlet. Changed Start-TaskSchedulerHistory to Enable-TaskSchedulerHistory (left and alias). Added alias "using" to Invoke-Using.
 

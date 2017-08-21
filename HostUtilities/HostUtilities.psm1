@@ -7611,6 +7611,86 @@ Function Merge-Hashtables {
 	}
 }
 
+Function ConvertTo-Hashtable {
+	<#
+		.SYNOPSIS 
+			Converts a PSCustomObject to a Hashtable.
+
+		.DESCRIPTION
+			The cmdlet takes a PSCustomObject and converts all of its property key/values to a Hashtable. You can specify keys from the PSCustomObject to exclude or specify that empty values not be added to the Hashtable.
+
+		.PARAMETER InputObject
+			The PSCustomObject to convert.
+
+		.PARAMETER ExcludedKeys
+			The key values from the PSCustomObject not to include in the Hashtable.
+
+		.PARAMETER NoEmpty
+			Specify to not include keys with empty or null values from the PSCustomObject in the Hashtable.
+
+		.EXAMPLE
+			ConvertTo-Hashtable -InputObject ([PSCustomObject]@{"Name" = "Smith"})
+
+			Converts the inputted PSCustomObject to a hashtable.
+
+		.EXAMPLE 
+			ConvertTo-Hashtable -InputObject ([PSCustomObject]@{"LastName" = "Smith", "Middle" = "", "FirstName" = "John"}) -NoEmpty -ExcludedKeys @("FirstName")
+
+			Converts the inputted PSCustomObject to a hashtable. The empty property, Middle is excluded, and the property FirstName is excluded explicitly. This results
+			in a hashtable @{"LastName" = "Smith"}
+
+		.INPUTS
+            System.Management.Automation.PSCustomObject
+
+        .OUTPUTS
+            System.Collections.Hashtable
+
+        .NOTES
+            AUTHOR: Michael Haken
+			LAST UPDATE: 8/21/2017	
+	#>
+	[CmdletBinding()]
+	[OutputType([System.Collections.Hashtable])]
+	Param(
+		[Parameter(Mandatory = $true, ValueFromPipeline = $true)]
+		[PSCustomObject]$InputObject,
+
+		[Parameter()]
+		[System.String[]]$ExcludedKeys = @(),
+
+		[Parameter()]
+		[Switch]$NoEmpty
+	)
+
+	Begin {
+	}
+	
+	Process {
+		[System.Collections.Hashtable]$Result = @{}
+
+		$InputObject | Get-Member -MemberType "*Property" | Select-Object -ExpandProperty Name | ForEach-Object {
+			if ($ExcludedKeys -inotcontains $_) {
+				if ($NoEmpty -and -not ($InputObject.$_ -eq $null -or $InputObject.$_ -eq ""))
+				{
+					Write-Verbose -Message "Property $_ has an empty/null value."
+				}
+				else 
+				{
+					$Result.Add($_, $InputObject.$_)
+				}
+			}
+			else {
+				Write-Verbose -Message "Property $_ excluded."
+			}
+		}
+
+		Write-Output -InputObject $Result
+	}
+
+	End {
+	}
+}
+
 $script:IPv6Configs = @(
 	[PSCustomObject]@{Name="IPv6 Disabled On All Interfaces";Value="0xFFFFFFFF"},
 	[PSCustomObject]@{Name="IPv6 Enabled only on tunnel interfaces";Value="0xFFFFFFFE"}, 
