@@ -1470,13 +1470,13 @@ Function Get-RegistryKeyEntries {
 	End {}
 }
 
-Function Start-TaskSchedulerHistory {
+Function Enable-TaskSchedulerHistory {
 	<#
 		.SYNOPSIS
 			Enables the Task Scheduler log history.
 
 		.DESCRIPTION
-			The Start-TaskSchedulerHistory cmdlet enables the windows event logs for the Task Scheduler. The command should be used to correct the issue of Scheduled Tasks' history showing as "Disabled" in Task Scheduler.
+			The Enable-TaskSchedulerHistory cmdlet enables the windows event logs for the Task Scheduler. The command should be used to correct the issue of Scheduled Tasks' history showing as "Disabled" in Task Scheduler.
 
 		.INPUTS
 			None
@@ -1485,7 +1485,7 @@ Function Start-TaskSchedulerHistory {
 			None
 
 		.EXAMPLE
-			Start-TaskSchedulerHistory
+			Enable-TaskSchedulerHistory
 			This command starts the collection of scheduled task events.
 
 		.NOTES
@@ -1495,6 +1495,7 @@ Function Start-TaskSchedulerHistory {
 		.FUNCTIONALITY
 			The intended use of this cmdlet is to turn on history for Scheduled Tasks.
 	#>
+	[Alias("Start-TaskSchedulerHistory")]
 	[CmdletBinding()]
 	Param ()
 
@@ -7006,43 +7007,6 @@ Function Get-EncryptedPassword {
     }
 }
 
-Function Enable-TaskSchedulerHistory {
-	<#
-		.SYNOPSIS
-			The cmdlet enables the task scheduler history logs.
-
-		.DESCRIPTION
-			The cmdlet enables the task scheduler history logs.
-
-		.INPUTS
-			None
-		
-		.OUTPUTS
-			None
-
-		.EXAMPLE 
-			Enable-TaskSchedulerHistory
-
-			Enables the task scheduler history.
-
-		.NOTES
-			None
-	#>
-	[CmdletBinding()]
-	Param()
-
-    Begin {}
-
-	Process {
-	    $LogName = 'Microsoft-Windows-TaskScheduler/Operational'
-		$EventLog = New-Object System.Diagnostics.Eventing.Reader.EventLogConfiguration $LogName
-		$EventLog.IsEnabled = $true
-		$EventLog.SaveChanges()
-	}
-
-    End{}
-}
-
 Function Get-CertificateSAN {
 	<#
 		.SYNOPSIS
@@ -7494,6 +7458,7 @@ Function Invoke-Using {
 			LAST UPDATE: 6/21/2017
 
     #>
+	[Alias("using")]
     [CmdletBinding()]
     Param(
         [Parameter(Mandatory = $true)]
@@ -7529,6 +7494,28 @@ Function Invoke-Using {
 }
 
 Function Invoke-WmiRepositoryRebuild {
+	<#
+        .SYNOPSIS
+            Rebuilds the WMI repository.
+
+        .DESCRIPTION
+            The cmdlet rebuilds the WMI repository by calling mofcomp.exe on all non uninstall mof files in c:\system32\wbem
+      
+        .EXAMPLE
+            Invoke-WmiRepositoryRebuild
+
+			Rebuilds the WMI repository.
+
+        .INPUTS
+            None
+
+        .OUTPUTS
+            None
+
+        .NOTES
+            AUTHOR: Michael Haken
+			LAST UPDATE: 8/21/2017
+    #>
 	[CmdletBinding()]
 	Param()
 
@@ -7548,6 +7535,76 @@ Function Invoke-WmiRepositoryRebuild {
 				Write-Verbose -Message ([System.String]::Join("`r`n", $Result))
 			}
 		}
+	}
+
+	End {
+	}
+}
+
+Function Merge-Hashtables {
+	<#
+		.SYNOPSIS 
+			Merges two hashtables.
+
+		.DESCRIPTION
+			The cmdlet merges a second hashtable with a source one. The second hashtable will add or overwrite its values to a copy of the first. Neither of the two input hashtables are modified.
+
+		.PARAMETER Source
+			The source hashtable that will be added to or overwritten. The original hashtable is not modified.
+
+		.PARAMETER Update
+			The hashtable that will be merged into the source. This hashtable is not modified.
+
+		.EXAMPLE
+			Merge-Hashtables -Source @{"Key" = "Test"} -Data @{"Key" = "Test2"; "Key2" = "Test3"}
+
+			This cmdlet results in a hashtable that looks like as follows: @{"Key" = "Test2"; "Key2" = "Test3"}
+
+		.INPUTS
+            None
+
+        .OUTPUTS
+            System.Collections.Hashtable
+
+        .NOTES
+            AUTHOR: Michael Haken
+			LAST UPDATE: 8/21/2017	
+	#>
+
+	[CmdletBinding()]
+	Param(
+		[Parameter(Mandatory = $true)]
+		[ValidateNotNull()]
+		[System.Collections.Hashtable]$Source,
+
+		[Parameter(Mandatory = $true)]
+		[ValidateNotNull()]
+		[System.Collections.Hashtable]$Update
+	)
+
+	Begin {
+	}
+
+	Process {
+		# Make a copy of the source so it is not modified
+		$Output = $Source.Clone()
+
+		# Check each key in the update to see if the output already has it
+		foreach ($Key in $Update.Keys)
+		{
+			# If it does, update the value
+			if ($Output.ContainsKey($Key))
+			{
+				$Output[$Key] = $Update[$Key]
+			}
+			else 
+			{
+				# If not, add the key/value
+				$Output.Add($Key, $Update[$Key])
+			}
+		}
+
+		Write-Output -InputObject $Output
 	}
 
 	End {
