@@ -2,6 +2,9 @@
 
 ## Revision History
 
+### 1.1.1.2
+Changed the parameter of ConvertTo-Hashtable from ExcludedKeys to Exclude.
+
 ### 1.1.1.1
 Added the ConvertTo-Hashtable cmdlet.
 

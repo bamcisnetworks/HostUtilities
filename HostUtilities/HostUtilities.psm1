@@ -7622,7 +7622,7 @@ Function ConvertTo-Hashtable {
 		.PARAMETER InputObject
 			The PSCustomObject to convert.
 
-		.PARAMETER ExcludedKeys
+		.PARAMETER Exclude
 			The key values from the PSCustomObject not to include in the Hashtable.
 
 		.PARAMETER NoEmpty
@@ -7634,7 +7634,7 @@ Function ConvertTo-Hashtable {
 			Converts the inputted PSCustomObject to a hashtable.
 
 		.EXAMPLE 
-			ConvertTo-Hashtable -InputObject ([PSCustomObject]@{"LastName" = "Smith", "Middle" = "", "FirstName" = "John"}) -NoEmpty -ExcludedKeys @("FirstName")
+			ConvertTo-Hashtable -InputObject ([PSCustomObject]@{"LastName" = "Smith", "Middle" = "", "FirstName" = "John"}) -NoEmpty -Exclude @("FirstName")
 
 			Converts the inputted PSCustomObject to a hashtable. The empty property, Middle is excluded, and the property FirstName is excluded explicitly. This results
 			in a hashtable @{"LastName" = "Smith"}
@@ -7656,7 +7656,7 @@ Function ConvertTo-Hashtable {
 		[PSCustomObject]$InputObject,
 
 		[Parameter()]
-		[System.String[]]$ExcludedKeys = @(),
+		[System.String[]]$Exclude = @(),
 
 		[Parameter()]
 		[Switch]$NoEmpty
@@ -7669,7 +7669,7 @@ Function ConvertTo-Hashtable {
 		[System.Collections.Hashtable]$Result = @{}
 
 		$InputObject | Get-Member -MemberType "*Property" | Select-Object -ExpandProperty Name | ForEach-Object {
-			if ($ExcludedKeys -inotcontains $_) {
+			if ($Exclude -inotcontains $_) {
 				if ($NoEmpty -and -not ($InputObject.$_ -eq $null -or $InputObject.$_ -eq ""))
 				{
 					Write-Verbose -Message "Property $_ has an empty/null value."
