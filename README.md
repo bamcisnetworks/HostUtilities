@@ -2,6 +2,9 @@
 
 ## Revision History
 
+### 1.1.2.0
+Added the Get-PropertyValue, Get-UnboundParameterValue, Import-UnboundParameterCode, and New-DynamicParameter cmdlets.
+
 ### 1.1.1.2
 Changed the parameter of ConvertTo-Hashtable from ExcludedKeys to Exclude.
 
