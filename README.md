@@ -2,6 +2,9 @@
 
 ## Revision History
 
+### 1.1.2.1
+Fixed bugs with the New-DyanmicParameter cmdlet parameters.
+
 ### 1.1.2.0
 Added the Get-PropertyValue, Get-UnboundParameterValue, Import-UnboundParameterCode, and New-DynamicParameter cmdlets.
 

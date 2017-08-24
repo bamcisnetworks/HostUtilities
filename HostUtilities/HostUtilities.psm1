@@ -8302,15 +8302,15 @@ Function New-DynamicParameter {
 			$AttributeCollection.Add($ValidateRangeAttribute)
 		}
 
-		if ($NotNull)
+		if ($ValidateNotNull)
 		{
-			$NotNullAttribute = New-Object -TypeName System.Management.Automation.NotNullAttribute
+			$NotNullAttribute = New-Object -TypeName System.Management.Automation.ValidateNotNullAttribute
 			$AttributeCollection.Add($NotNullAttribute)
 		}
 
-		if ($NotNullOrEmpty)
+		if ($ValidateNotNullOrEmpty)
 		{
-			$NotNullOrEmptyAttribute = New-Object -TypeName System.Management.Automation.NotNullOrEmptyAttribute
+			$NotNullOrEmptyAttribute = New-Object -TypeName System.Management.Automation.ValidateNotNullOrEmptyAttribute
 			$AttributeCollection.Add($NotNullOrEmptyAttribute)
 		}
 
@@ -8324,6 +8324,12 @@ Function New-DynamicParameter {
 		{
 			$AllowEmptyCollectionAttribute = New-Object -TypeName System.Management.Automation.AllowEmptyCollectionAttribute
 			$AttributeCollection.Add($AllowEmptyCollectionAttribute)
+		}
+
+		if ($AllowNull)
+		{
+			$AllowNullAttribute = New-Object -TypeName System.Management.Automation.AllowNullAttribute
+			$AttributeCollection.Add($AllowNullAttribute)
 		}
 
 		if (-not $RuntimeParameterDictionary.ContainsKey($Name))
@@ -8341,8 +8347,6 @@ Function New-DynamicParameter {
                 }
             }
 		}
-
-		
 	}
 
 	End {
