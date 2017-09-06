@@ -8172,7 +8172,10 @@ Function New-DynamicParameter {
 		[System.Management.Automation.ScriptBlock]$ValidateScript,
 
 		[Parameter(ValueFromPipelineByPropertyName = $true)]
-		[ValidateNotNullOrEmpty()]
+		[ValidateNotNull()]
+		[ValidateScript({
+			$_.Length -gt 0
+		})]
 		[System.String[]]$ValidateSet = @(),
 
 		[Parameter(ValueFromPipelineByPropertyName = $true)]

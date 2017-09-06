@@ -2,6 +2,9 @@
 
 ## Revision History
 
+### 1.1.2.2
+Updated parameter validation for ValidateSet on New-DynamicParameter.
+
 ### 1.1.2.1
 Fixed bugs with the New-DyanmicParameter cmdlet parameters.
 
