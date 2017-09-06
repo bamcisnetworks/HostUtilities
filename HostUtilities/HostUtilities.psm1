@@ -8173,9 +8173,6 @@ Function New-DynamicParameter {
 
 		[Parameter(ValueFromPipelineByPropertyName = $true)]
 		[ValidateNotNull()]
-		[ValidateScript({
-			$_.Length -gt 0
-		})]
 		[System.String[]]$ValidateSet = @(),
 
 		[Parameter(ValueFromPipelineByPropertyName = $true)]
@@ -8209,7 +8206,6 @@ Function New-DynamicParameter {
 	}
 
 	Process {
-		
 		# Create the collection of attributes
 		$AttributeCollection = New-Object -TypeName System.Collections.ObjectModel.Collection[System.Attribute]
 
