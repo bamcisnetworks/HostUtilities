@@ -2,6 +2,12 @@
 
 ## Revision History
 
+### 1.1.2.5
+Added the Set-NetAdapterDnsSuffix and Get-NetAdapterErrorCode cmdlets.
+
+### 1.1.2.4
+Minor updates to New-DynamicParameter cmdlet.
+
 ### 1.1.2.3
 Fixed bug in New-DynamicParameter.
 

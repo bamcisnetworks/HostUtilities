@@ -8208,18 +8208,16 @@ Function New-DynamicParameter {
 	Process {
 		# Create the collection of attributes
 		$AttributeCollection = New-Object -TypeName System.Collections.ObjectModel.Collection[System.Attribute]
-
-		if ($ParameterSets.Length -le 0)
-		{
-			$ParameterSets += "__AllParameterSets"
-		}
 			
 		foreach ($Set in $ParameterSets)
 		{
 			# Create and set the parameter's attributes
 			$ParameterAttribute = New-Object -TypeName System.Management.Automation.PARAMETERAttribute
 
-			$ParameterAttribute.ParameterSetName = $Set
+			if (-not [System.String]::IsNullOrEmpty($Set))
+			{
+				$ParameterAttribute.ParameterSetName = $Set
+			}
 
 			if ($Position -ne $null)
 			{
@@ -8350,6 +8348,259 @@ Function New-DynamicParameter {
 
 	End {
 		Write-Output -InputObject $RuntimeParameterDictionary
+	}
+}
+
+Function Set-NetAdapterDnsSuffix {
+	<#
+		.SYNOPSIS
+			Sets the DNS suffix search order for TCP/IP.
+
+		.DESCRIPTION
+			This cmdlet allows you to specify either a list of DNS suffixes, a single DNS suffix that should be at the top of the ordering and optionally replace
+			all other entries, or revert to using the primary and connection specific suffixes with optional domain name devolution (the "append parent suffixes of the primary dns suffix" option).
+
+		.PARAMETER Domains
+			The domains to set as the DNS suffix search list.
+
+		.PARAMETER DefaultDomain
+			The domain that should appear at the top of the search list. If it does not currently exist in the list it will be added, otherwise it will be moved to the top.
+
+		.PARAMETER Replace
+			Indicates whether the default domain should replace all of the current entries in the list. This is equivalent to specifying the parameter -Domains @("my.newdomain.com").
+		
+		.PARAMETER AppendPrimaryAndConnectionSpecificSuffixes
+			This parameter removes all entries from the Search List and uses provided primary and connection specific DNS suffixes when resolving unqualified domain names.
+
+		.PARAMETER UseDomainNameDevolution
+			This parameter indiciates that domain name devolution will be used. The resolver performs name devolution on the primary DNS suffix. 
+			It strips off the leftmost label and tries the resulting domain name until only two labels remain. For example, if your primary DNS suffix 
+			is mfg.fareast.isp01-ext.com, and then queried for the unqualified, single-label name "coffee," the resolver queries in order the following FQDNs:
+			
+				coffee.fareast.isp01-ext.com.
+				coffee.isp01-ext.com.
+
+		.PARAMETER ReturnStringErrorMessage
+			If this is specified, instead of an integer return value, the string representation of the error code is returned.
+
+		.EXAMPLE
+			$Result = Set-NetAdapterDnsSuffix -Domains @("contoso.com", "tailspintoys.com")
+
+			This sets the DNS suffix search list to the domains provided. The Result indicates the success or failure code of the operation.
+
+		.EXAMPLE
+			$Result = Set-NetAdapterDnsSuffix -DefaultDomain "contoso.com"
+
+			This sets contoso.com to be the first entry in the search list and does not modify any existing entries.
+
+		.EXAMPLE
+			$Result = Set-NetAdapterDnsSuffix -AppendPrimaryAndConnectionSpecificSuffixes
+
+			This removes all items in the Search List and uses primary and connection specific suffixes (like those received from DHCP).
+
+		.INPUTS
+			System.String[]
+
+		.OUTPUTS
+			System.Int32
+
+			The output is 0 for success and non-zero for failure. The exit code may correspond to a known error message that can be accessed through the
+			Get-NetAdapterErrorCode cmdlet.
+		
+
+		.NOTES
+            AUTHOR: Michael Haken
+			LAST UPDATE: 10/2/2017
+	#>
+	[CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = "HIGH")]
+	Param(
+		[Parameter(Mandatory = $true, ValueFromPipeline = $true, ParameterSetName = "Domains")]
+		[ValidateNotNullOrEmpty()]
+		[System.String[]]$Domains = @(),
+
+		[Parameter(Mandatory = $true, ParameterSetName = "UpdateDefault")]
+		[System.String]$DefaultDomain,
+		
+		[Parameter(ParameterSetName = "UpdateDefault")]
+		[System.Boolean]$Replace = $false,
+
+		[Parameter(ParameterSetName = "AppendPrimary", Mandatory = $true)]
+		[Switch]$AppendPrimaryAndConnectionSpecificSuffixes,
+
+		[Parameter(ParameterSetName = "AppendPrimary")]
+		[System.Boolean]$UseDomainNameDevolution,
+		
+		[Parameter()]
+		[Switch]$ReturnStringErrorMessage,
+
+		[Parameter()]
+		[Switch]$Force
+	)
+
+	Begin {
+		if (-not (Test-IsLocalAdmin)) {
+			throw "You must run this cmdlet with admin credentials."
+		}
+	}
+	
+	Process {
+		$Result = 65
+
+		switch ($PSCmdlet.ParameterSetName)
+		{
+			"AppendPrimary" {
+				$Path = "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters"
+
+				Write-Verbose "Updating registry at $Path."
+				$Prop = Get-ItemProperty -Path $Path -Name SearchList
+
+				if ($Prop -eq $null)
+				{
+					New-ItemProperty -Path $Path -Name SearchList -Value "" -PropertyType ([Microsoft.Win32.RegistryValueKind]::String) | Out-Null
+				}
+				else
+				{
+					# This will create the value if it doesn't exist, or update the existing property,
+					# but we can't specify a property type with it
+					Set-ItemProperty -Path $Path -Name SearchList -Value "" | Out-Null
+				}
+
+				if ($PSBoundParameters.ContainsKey("UseDomainNameDevolution")) {
+					$Prop = Get-ItemProperty -Path $Path -Name UseDomainNameDevolution
+
+					if ($Prop -eq $null)
+					{
+						New-ItemProperty -Path $Path -Name UseDomainNameDevolution ([System.Int32]$UseDomainNameDevolution) -PropertyType ([Microsoft.Win32.RegistryValueKind]::DWord) | Out-Null
+					}
+					else
+					{
+						Set-ItemProperty -Path $Path -Name UseDomainNameDevolution -Value ([System.Int32]$UseDomainNameDevolution) | Out-Null
+					}
+				}
+
+				$Result = 0
+
+				break
+			}
+			{$_ -in @("UpdateDefault", "Domains")} {
+
+				# Have to use wmi object vs cim instance because the cim object does not have the SetDNSServerSearchOrder method
+				[System.Management.ManagementObject]$NetworkAdapter = Get-WmiObject -Class Win32_NetworkAdapterConfiguration -Filter "IpEnabled = true" -ErrorAction Stop | Where-Object {$_.DNSDomainSuffixSearchOrder -ne $null }  | Select-Object -First 1
+
+				if ($NetworkAdapter -ne $null)
+				{
+					$NewDns = @()
+
+					# Just set the new domains to the provided ones
+					if ($PSCmdlet.ParameterSetName -eq "Domains")
+					{
+						$NewDns = $Domains
+					}
+					# Otherwise, if we're replacing, only add the new default domain
+					elseif ($Replace)
+					{
+						$NewDns += $DefaultDomain
+					}
+					# Otherwise, we got a default domain, but we want to move it to the top
+					else
+					{
+						[System.String[]]$Dns = $NetworkAdapter | Select-Object -ExpandProperty DNSDomainSuffixSearchOrder
+						$Index = [System.Array]::IndexOf($Dns, $DefaultDomain)
+
+						# Index will be -1 if not found, otherwise, we found it, so move it first
+						if ($Index -ge 0)
+						{
+							$NewDns += $Dns[$Index]
+						}
+
+						for ($i = 0; $i -lt $Dns.Length; $i++)
+						{
+							if ($i -ne $Index)
+							{
+								$NewDns += $Dns[$i]
+							}
+						}
+					}
+
+					Write-Verbose "Calling SetDNSSuffixSearchOrder WMI method."
+					$Result = (Invoke-WmiMethod -Class Win32_NetworkAdapterConfiguration -Name SetDNSSuffixSearchOrder -ArgumentList @($NewDns),$null).ReturnValue
+				}
+
+				break
+			}
+		}
+
+		if ($ReturnStringErrorMessage)
+		{
+			if ($script:NicErrorMessages.ContainsKey($Result) )
+			{
+				Write-Output -InputObject ($script:NicErrorMessages[$Result])
+			}
+			else
+			{
+				Write-Output -InputObject "$Result"
+			}
+		}
+		else
+		{
+			Write-Output -InputObject $Result
+		}
+	}
+
+	End {
+
+	}
+}
+
+Function Get-NetAdapterErrorCode {
+	<#
+		.SYNOPSIS 
+			Returns the string error message from a net adapter WMI method return value for the Win32_NetworkAdapterConfiguration class.
+
+		.DESCRIPTION
+			Attempts the find the string error message corresponding to the SetDNSSuffixSearchOrder method call on the Win32_NetworkAdapterConfiguration class. 
+			If the error message is not found, the error code is returned as a string. This cmdlet can be used with the Set-NetAdapterDnsSuffix cmdlet to translate
+			the return code.
+
+		.PARAMETER ErrorCode
+			The error code returned by the Win32_NetworkAdapterConfiguration class method.
+
+		.EXAMPLE
+			Get-NetAdapterErrorCode -ErrorCode 73
+
+			This returns the string "Invalid domain name".
+
+		.INPUTS
+			System.Int32
+
+		.OUTPUTS
+			System.String
+
+		.NOTES
+            AUTHOR: Michael Haken
+			LAST UPDATE: 10/2/2017
+	#>
+	[CmdletBinding()]
+	Param(
+		[Parameter(Mandatory = $true, ValueFromPipeline = $true, Position = 0)]
+		[System.UInt32]$ErrorCode
+	)
+
+	Begin {
+	}
+
+	Process {
+		if ($script:NicErrorMessages.ContainsKey($ErrorCode))
+		{
+			Write-Output -InputObject $script:NicErrorMessages[$ErrorCode]
+		}
+		else
+		{
+			Write-Output -InputObject "$ErrorCode"
+		}
+	}
+
+	End {
 	}
 }
 
@@ -8878,3 +9129,46 @@ namespace BAMCIS
     }
 }
 "@
+
+$script:NicErrorMessages = @{
+			[System.UInt32]0 = "Successful completion, no reboot required";
+			[System.UInt32]1 = "Successful completion, reboot required";
+			[System.UInt32]64 = "Method not supported on this platform";
+			[System.UInt32]65 = "Unknown failure";
+			[System.UInt32]66 = "Invalid subnet mask";
+			[System.UInt32]67 = "An error occurred while processing an Instance that was returned";
+			[System.UInt32]68 = "Invalid input parameter";
+			[System.UInt32]69 = "More than 5 gateways specified";
+			[System.UInt32]70 = "Invalid IP address";
+			[System.UInt32]71 = "Invalid gateway IP address";
+			[System.UInt32]72 = "An error occurred while accessing the Registry for the requested information";
+			[System.UInt32]73 = "Invalid domain name";
+			[System.UInt32]74 = "Invalid host name";
+			[System.UInt32]75 = "No primary/secondary WINS server defined";
+			[System.UInt32]76 = "Invalid file";
+			[System.UInt32]77 = "Invalid system path";
+			[System.UInt32]78 = "File copy failed";
+			[System.UInt32]79 = "Invalid security parameter";
+			[System.UInt32]80 = "Unable to configure TCP/IP service";
+			[System.UInt32]81 = "Unable to configure DHCP service";
+			[System.UInt32]82 = "Unable to renew DHCP lease";
+			[System.UInt32]83 = "Unable to release DHCP lease";
+			[System.UInt32]84 = "IP not enabled on adapter";
+			[System.UInt32]85 = "IPX not enabled on adapter";
+			[System.UInt32]86 = "Frame/network number bounds error";
+			[System.UInt32]87 = "Invalid frame type";
+			[System.UInt32]88 = "Invalid network number";
+			[System.UInt32]89 = "Duplicate network number";
+			[System.UInt32]90 = "Parameter out of bounds";
+			[System.UInt32]91 = "Access denied";
+			[System.UInt32]92 = "Out of memory";
+			[System.UInt32]93 = "Already exists";
+			[System.UInt32]94 = "Path, file or object not found";
+			[System.UInt32]95 = "Unable to notify service";
+			[System.UInt32]96 = "Unable to notify DNS service";
+			[System.UInt32]97 = "Interface not configurable";
+			[System.UInt32]98 = "Not all DHCP leases could be released/renewed";
+			[System.UInt32]100 = "DHCP not enabled on adapter";
+			[System.UInt32]2147786788 = "Write lock not enabled";
+			[System.UInt32]2147749891 = "Must be run with admin privileges"
+		}
