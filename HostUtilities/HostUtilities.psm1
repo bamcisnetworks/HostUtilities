@@ -8484,57 +8484,52 @@ Function Set-NetAdapterDnsSuffix {
 			}
 			{$_ -in @("UpdateDefault", "Domains")} {
 
-				# Have to use wmi object vs cim instance because the cim object does not have the SetDNSServerSearchOrder method
-				[System.Management.ManagementObject]$NetworkAdapter = Get-WmiObject -Class Win32_NetworkAdapterConfiguration -Filter "IpEnabled = true" -ErrorAction Stop | Where-Object {$_.DNSDomainSuffixSearchOrder -ne $null }  | Select-Object -First 1
+				$NewDns = @()
 
-				if ($NetworkAdapter -ne $null)
+				# Just set the new domains to the provided ones
+				if ($PSCmdlet.ParameterSetName -eq "Domains")
 				{
-					$NewDns = @()
+					$NewDns = $Domains
+				}
+				# Otherwise, if we're replacing, only add the new default domain
+				elseif ($Replace)
+				{
+					$NewDns += $DefaultDomain
+				}
+				# Otherwise, we got a default domain, but we want to move it to the top
+				else
+				{
+					[System.String[]]$Dns = (Get-CimClass -ClassName Win32_NetworkAdapterConfiguration).CimClassProperties["DNSDomainSuffixSearchOrder"].Value
 
-					# Just set the new domains to the provided ones
-					if ($PSCmdlet.ParameterSetName -eq "Domains")
+					$Index = [System.Array]::IndexOf($Dns, $DefaultDomain)
+
+					# Index will be -1 if not found, otherwise, we found it, so move it first
+					if ($Index -ge 0)
 					{
-						$NewDns = $Domains
+						$NewDns += $Dns[$Index]
 					}
-					# Otherwise, if we're replacing, only add the new default domain
-					elseif ($Replace)
-					{
-						$NewDns += $DefaultDomain
-					}
-					# Otherwise, we got a default domain, but we want to move it to the top
-					else
-					{
-						[System.String[]]$Dns = $NetworkAdapter | Select-Object -ExpandProperty DNSDomainSuffixSearchOrder
-						$Index = [System.Array]::IndexOf($Dns, $DefaultDomain)
 
-						# Index will be -1 if not found, otherwise, we found it, so move it first
-						if ($Index -ge 0)
+					for ($i = 0; $i -lt $Dns.Length; $i++)
+					{
+						if ($i -ne $Index)
 						{
-							$NewDns += $Dns[$Index]
-						}
-
-						for ($i = 0; $i -lt $Dns.Length; $i++)
-						{
-							if ($i -ne $Index)
-							{
-								$NewDns += $Dns[$i]
-							}
+							$NewDns += $Dns[$i]
 						}
 					}
-
-					Write-Verbose "Calling SetDNSSuffixSearchOrder WMI method."
-					$Result = (Invoke-WmiMethod -Class Win32_NetworkAdapterConfiguration -Name SetDNSSuffixSearchOrder -ArgumentList @($NewDns),$null).ReturnValue
 				}
 
+				Write-Verbose "Calling SetDNSSuffixSearchOrder CIM method."
+				$Result = (Invoke-CimMethod -ClassName Win32_NetworkAdapterConfiguration -MethodName SetDNSSuffixSearchOrder -Arguments @{"DNSDomainSuffixSearchOrder" = $NewDns}).ReturnValue
+				
 				break
 			}
 		}
 
 		if ($ReturnStringErrorMessage)
 		{
-			if ($script:NicErrorMessages.ContainsKey($Result) )
+			if ($script:NicErrorMessages.ContainsKey([System.UInt32]$Result) )
 			{
-				Write-Output -InputObject ($script:NicErrorMessages[$Result])
+				Write-Output -InputObject ($script:NicErrorMessages[[System.UInt32]$Result])
 			}
 			else
 			{

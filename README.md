@@ -2,6 +2,9 @@
 
 ## Revision History
 
+### 1.1.2.6
+Updated the Set-NetAdapterDnsSuffix cmdlet to use CIM cmdlets.
+
 ### 1.1.2.5
 Added the Set-NetAdapterDnsSuffix and Get-NetAdapterErrorCode cmdlets.
 
