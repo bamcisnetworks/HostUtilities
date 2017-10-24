@@ -2031,11 +2031,9 @@ Function Get-ProcessToken {
         [IntPtr]$DulicateTokenHandle = [IntPtr]::Zero
         [IntPtr]$ProcessTokenHandle = [IntPtr]::Zero
         
-		if (!([System.Management.Automation.PSTypeName]"AdjPriv").Type) {
-			Add-Type -MemberDefinition $script:TokenSignature -Name AdjPriv -Namespace AdjPriv
+		if (!([System.Management.Automation.PSTypeName]"BAMCIS.PowerShell.SecurityToken").Type) {
+			Add-Type -TypeDefinition $script:TokenSignature
 		}
-
-        $AdjPriv = [AdjPriv.AdjPriv]
 
         try {
 			switch ($PSCmdlet.ParameterSetName) {
@@ -2052,18 +2050,18 @@ Function Get-ProcessToken {
 				}
 			}
 
-		    $ReturnValue = $AdjPriv::OpenProcessToken($Process.Handle, ([AdjPriv.AdjPriv]::TOKEN_IMPERSONATE -BOR [AdjPriv.AdjPriv]::TOKEN_DUPLICATE), [ref]$ProcessTokenHandle)
-		    $ReturnValue = $AdjPriv::DuplicateToken($ProcessTokenHandle, [AdjPriv.AdjPriv+SECURITY_IMPERSONATION_LEVEL]::SecurityImpersonation, [ref]$DulicateTokenHandle)
+		    $ReturnValue = [BAMCIS.PowerShell.SecurityToken]::OpenProcessToken($Process.Handle, ([BAMCIS.PowerShell.SecurityToken]::TOKEN_IMPERSONATE -BOR [BAMCIS.PowerShell.SecurityToken]::TOKEN_DUPLICATE), [ref]$ProcessTokenHandle)
+		    $ReturnValue = [BAMCIS.PowerShell.SecurityToken]::DuplicateToken($ProcessTokenHandle, [BAMCIS.PowerShell.SecurityToken+SECURITY_IMPERSONATION_LEVEL]::SecurityImpersonation, [ref]$DulicateTokenHandle)
 		
 		    if($ReturnValue -eq $null -or $ReturnValue -eq $false) {
 			    throw (New-Object -TypeName System.Exception([System.ComponentModel.Win32Exception][System.Runtime.InteropServices.marshal]::GetLastWin32Error()))
 		    }
         }
         finally {
-            $AdjPriv::CloseHandle($ProcessTokenHandle) | Out-Null
+            [BAMCIS.PowerShell.SecurityToken]::CloseHandle($ProcessTokenHandle) | Out-Null
 
 			if ($CloseHandle) {
-				$AdjPriv::CloseHandle($DulicateTokenHandle) | Out-Null
+				[BAMCIS.PowerShell.SecurityToken]::CloseHandle($DulicateTokenHandle) | Out-Null
 			}
         }
 
@@ -2105,7 +2103,7 @@ Function Set-ProcessToken {
 
 		.NOTES
 			AUTHOR: Michael Haken
-			LAST UPDATE: 3/25/2016
+			LAST UPDATE: 10/23/2017
 	#>
 	[CmdletBinding()]
 	Param(
@@ -2122,44 +2120,23 @@ Function Set-ProcessToken {
 	}
 
 	Process {
-		if (!([System.Management.Automation.PSTypeName]"AdjPriv").Type) {
-			Add-Type -MemberDefinition $script:TokenSignature -Name AdjPriv -Namespace AdjPriv
+		if (!([System.Management.Automation.PSTypeName]"BAMCIS.PowerShell.SecurityToken").Type) {
+			Add-Type -TypeDefinition $script:TokenSignature
 		}
 
-        $AdjPriv = [AdjPriv.AdjPriv]
-
 		if ($ElevatePrivileges) {
-
-			$TokenPrivilege1Luid = New-Object AdjPriv.AdjPriv+TokPriv1Luid
-		    $TokenPrivilege1Luid.Count = 1
-		    $TokenPrivilege1Luid.Luid = 0
-		    $TokenPrivilege1Luid.Attr = [AdjPriv.AdjPriv]::SE_PRIVILEGE_ENABLED
-
-			[System.IntPtr]$TempToken = [System.IntPtr]::Zero
-
-		    $ReturnValue = $AdjPriv::LookupPrivilegeValue($null, "SeDebugPrivilege", [ref]$TokenPrivilege1Luid.Luid)
-		    $ReturnValue = $AdjPriv::OpenProcessToken($AdjPriv::GetCurrentProcess(), [AdjPriv.AdjPriv]::TOKEN_ALL_ACCESS, [ref]$TempToken)
-  
-		    $TokenPrivileges = New-Object -TypeName AdjPriv.AdjPriv+TOKEN_PRIVILEGES
-        
-            $DisableAllPrivileges = $false
-            $BufferLength = 12
-		    $ReturnValue = $AdjPriv::AdjustTokenPrivileges($TempToken, $DisableAllPrivileges, [ref]$TokenPrivilege1Luid, $BufferLength, [IntPtr]::Zero, [IntPtr]::Zero)
-
-		    if($ReturnValue -eq $null -or $ReturnValue -eq $false) {
-			    throw (New-Object -TypeName System.Exception([System.ComponentModel.Win32Exception][System.Runtime.InteropServices.Marrshal]::GetLastWin32Error()))
-		    }
+			Set-SecurityPrivilege -Privileges SeDebugPrivilege -Enable
 		}
 
 		try {
-			$ReturnValue = $AdjPriv::SetThreadToken([IntPtr]::Zero, $TokenHandle)
+			$ReturnValue = [BAMCIS.PowerShell.SecurityToken]::SetThreadToken([IntPtr]::Zero, $TokenHandle)
 
 			if($ReturnValue -eq $null -or $ReturnValue -eq $false) {
 			    throw (New-Object -TypeName System.Exception([System.ComponentModel.Win32Exception][System.Runtime.InteropServices.Marshal]::GetLastWin32Error()))
 		    }
 		}
 		finally {
-			$AdjPriv::CloseHandle($TokenHandle) | Out-Null
+			[BAMCIS.PowerShell.SecurityToken]::CloseHandle($TokenHandle) | Out-Null
 		}
 
 		Write-Host "Successfully duplicated token to current process thread." -ForegroundColor Green
@@ -2207,14 +2184,12 @@ Function Reset-ProcessToken {
 	}
 
 	Process {
-		if (!([System.Management.Automation.PSTypeName]"AdjPriv").Type) {
-			Add-Type -MemberDefinition $script:TokenSignature -Name AdjPriv -Namespace AdjPriv
+		if (!([System.Management.Automation.PSTypeName]"BAMCIS.PowerShell.SecurityToken").Type) {
+			Add-Type -TypeDefinition $script:TokenSignature
 		}
 
-        $AdjPriv = [AdjPriv.AdjPriv]
-
 		#RevertToSelf is equivalent to SetThreadToken([System.IntPtr]::Zero, [System.IntPtr]::Zero)
-		$ReturnValue = $AdjPriv::RevertToSelf()
+		$ReturnValue = [BAMCIS.PowerShell.SecurityToken]::RevertToSelf()
 
 		if($ReturnValue -eq $null -or $ReturnValue -eq $false) {
 			throw (New-Object -TypeName System.Exception([System.ComponentModel.Win32Exception][System.Runtime.InteropServices.Marshal]::GetLastWin32Error()))
@@ -3656,7 +3631,7 @@ Function Set-Owner {
             Default value is 'Builtin\Administrators'
 
         .PARAMETER Recurse
-            Recursively set ownership on subfolders and files beneath given folder.
+            Recursively set ownership on subfolders and files beneath given folder. If the specified path is a file, this parameter is ignored.
 
 		.EXAMPLE
             PS C:\>Set-Owner -Path C:\temp\test.txt
@@ -3664,9 +3639,9 @@ Function Set-Owner {
             Changes the owner of test.txt to Builtin\Administrators
 
         .EXAMPLE
-            PS C:\>Set-Owner -Path C:\temp\test.txt -Account 'Domain\bprox
+            PS C:\>Set-Owner -Path C:\temp\test.txt -Account Domain\user
 
-            Changes the owner of test.txt to Domain\bprox
+            Changes the owner of test.txt to Domain\user
 
         .EXAMPLE
             PS C:\>Set-Owner -Path C:\temp -Recurse 
@@ -3680,193 +3655,86 @@ Function Set-Owner {
 
         .NOTES
 			AUTHOR: Michael Haken
-			LAST UPDATE: 2/28/2016
+			LAST UPDATE: 10/23/2017
     #>
-    [CmdletBinding(SupportsShouldProcess = $true)]
+    [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = "HIGH")]
     Param (
-        [Parameter(Position=0,ValueFromPipeline=$true)]
+        [Parameter(Position  =0 , ValueFromPipeline = $true, Mandatory = $true)]
         [Alias("FullName")]
 		[System.String]$Path,
 
-        [Parameter(Position=1)]
+        [Parameter(Position = 1)]
         [System.String]$Account = 'BUILTIN\Administrators',
 
         [Parameter()]
-        [switch]$Recurse
+        [switch]$Recurse,
+
+        [Parameter()]
+        [Switch]$Force
     )
 
     Begin {
-        #Prevent Confirmation on each Write-Debug command when using -Debug
-        If ($PSBoundParameters['Debug']) {
-            $DebugPreference = 'Continue'
-        }
+        if (!([System.Security.Principal.WindowsPrincipal][System.Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)) {
+			throw "Run the cmdlet with elevated credentials."
+		}
 
-        try {
-            [void][TokenAdjuster]
-        } catch {
-            $AdjustTokenPrivileges = @"
-            using System;
-            using System.Runtime.InteropServices;
-
-             public class TokenAdjuster
-             {
-              [DllImport("advapi32.dll", ExactSpelling = true, SetLastError = true)]
-              internal static extern bool AdjustTokenPrivileges(IntPtr htok, bool disall,
-              ref TokPriv1Luid newst, int len, IntPtr prev, IntPtr relen);
-              [DllImport("kernel32.dll", ExactSpelling = true)]
-              internal static extern IntPtr GetCurrentProcess();
-              [DllImport("advapi32.dll", ExactSpelling = true, SetLastError = true)]
-              internal static extern bool OpenProcessToken(IntPtr h, int acc, ref IntPtr
-              phtok);
-              [DllImport("advapi32.dll", SetLastError = true)]
-              internal static extern bool LookupPrivilegeValue(string host, string name,
-              ref long pluid);
-              [StructLayout(LayoutKind.Sequential, Pack = 1)]
-              internal struct TokPriv1Luid
-              {
-               public int Count;
-               public long Luid;
-               public int Attr;
-              }
-              internal const int SE_PRIVILEGE_DISABLED = 0x00000000;
-              internal const int SE_PRIVILEGE_ENABLED = 0x00000002;
-              internal const int TOKEN_QUERY = 0x00000008;
-              internal const int TOKEN_ADJUST_PRIVILEGES = 0x00000020;
-              public static bool AddPrivilege(string privilege)
-              {
-               try
-               {
-                bool retVal;
-                TokPriv1Luid tp;
-                IntPtr hproc = GetCurrentProcess();
-                IntPtr htok = IntPtr.Zero;
-                retVal = OpenProcessToken(hproc, TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, ref htok);
-                tp.Count = 1;
-                tp.Luid = 0;
-                tp.Attr = SE_PRIVILEGE_ENABLED;
-                retVal = LookupPrivilegeValue(null, privilege, ref tp.Luid);
-                retVal = AdjustTokenPrivileges(htok, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero);
-                return retVal;
-               }
-               catch (Exception ex)
-               {
-                throw ex;
-               }
-              }
-              public static bool RemovePrivilege(string privilege)
-              {
-               try
-               {
-                bool retVal;
-                TokPriv1Luid tp;
-                IntPtr hproc = GetCurrentProcess();
-                IntPtr htok = IntPtr.Zero;
-                retVal = OpenProcessToken(hproc, TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, ref htok);
-                tp.Count = 1;
-                tp.Luid = 0;
-                tp.Attr = SE_PRIVILEGE_DISABLED;
-                retVal = LookupPrivilegeValue(null, privilege, ref tp.Luid);
-                retVal = AdjustTokenPrivileges(htok, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero);
-                return retVal;
-               }
-               catch (Exception ex)
-               {
-                throw ex;
-               }
-              }
-             }
-"@
-            Add-Type $AdjustTokenPrivileges
-        }
-
-        #Activate necessary admin privileges to make changes without NTFS perms
-        [void][TokenAdjuster]::AddPrivilege("SeRestorePrivilege") #Necessary to set Owner Permissions
-        [void][TokenAdjuster]::AddPrivilege("SeBackupPrivilege") #Necessary to bypass Traverse Checking
-        [void][TokenAdjuster]::AddPrivilege("SeTakeOwnershipPrivilege") #Necessary to override FilePermissions
+        Set-SecurityPrivilege -Privileges @("SeRestorePrivilege","SeBackupPrivilege","SeTakeOwnershipPrivilege") -Enable
     }
 
     Process {
-		Write-Verbose -Message "FullName: $Path"
+        Write-Verbose -Message "Path: $Path"
 		$Account = Get-AccountTranslatedNTName -UserName $Account
 		Write-Verbose -Message "Account Name: $Account"
-       
-		#The ACL objects do not like being used more than once, so re-create them on the Process block
+
+        #The ACL objects do not like being used more than once, so re-create them on the Process block
         $DirOwner = New-Object System.Security.AccessControl.DirectorySecurity
         $DirOwner.SetOwner((New-Object -TypeName System.Security.Principal.NTAccount($Account)))
         
 		$FileOwner = New-Object System.Security.AccessControl.FileSecurity
         $FileOwner.SetOwner((New-Object -TypeName System.Security.Principal.NTAccount($Account)))
         
-		$DirAdminAcl = New-Object System.Security.AccessControl.DirectorySecurity
-        $FileAdminAcl = New-Object System.Security.AccessControl.DirectorySecurity
-        
-		[System.Security.Principal.SecurityIdentifier]$Administrators = New-Object Security.Principal.SecurityIdentifier([System.Security.Principal.WellKnownSidType]::BuiltinAdministratorsSid, $null)
-
-		$AdminACL = New-Object -TypeName System.Security.AccessControl.FileSystemAccessRule($Administrators.Translate([System.Security.Principal.NTAccount]),
-            [System.Security.AccessControl.FileSystemRights]::FullControl,
-            ([System.Security.AccessControl.InheritanceFlags]::ObjectInherit -bor [System.Security.AccessControl.InheritanceFlags]::ContainerInherit),
-            [System.Security.AccessControl.PropagationFlags]::InheritOnly,
-            [System.Security.AccessControl.AccessControlType]::Allow
-        )
-        
-		$FileAdminAcl.AddAccessRule($AdminACL)
-        $DirAdminAcl.AddAccessRule($AdminACL)
-        
-		try {
+        try {
 			$Item = Get-Item -LiteralPath $Path -Force -ErrorAction Stop
 
-            if (-not $Item.PSIsContainer) {
-                    
-				if ($PSCmdlet.ShouldProcess($Item, 'Set File Owner')) {
-					try 
-					{
-						$Item.SetAccessControl($FileOwner)
-						Write-Verbose -Message "Set ownership to $Account on $($Item.FullName)"
-					} 
-					catch [Exception] 
-					{
-						Write-Warning -Message "Couldn't take ownership of $($Item.FullName)! Taking FullControl of $($Item.Directory.FullName)"
-						$Item.Directory.SetAccessControl($FileAdminAcl)
-						$Item.SetAccessControl($FileOwner)
-					}
-				}
-			} 
-			else 
-			{
-				if ($PSCmdlet.ShouldProcess($Item, 'Set Directory Owner')) {                        
-					try 
-					{
-						$Item.SetAccessControl($DirOwner)
-						Write-Verbose -Message "Set ownership to $Account on $($Item.FullName)"
-					} 
-					catch [Exception] 
-					{
-						Write-Warning -Message "Couldn't take ownership of $($Item.FullName)! Taking FullControl of $($Item.Parent.FullName)"
-						$Item.Parent.SetAccessControl($DirAdminAcl) 
-						$Item.SetAccessControl($DirOwner)
-					}
-				}
+            if (-not $Item.PSIsContainer) 
+            {
+                $ConfirmMessage = "You are about to change the owner of $($Item.FullName) to $Account."
+				$WhatIfDescription = "Set Owner of $($Item.FullName)."
+				$ConfirmCaption = "Set File Owner"
 
-				if ($Recurse) 
+				if ($Force -or $PSCmdlet.ShouldProcess($WhatIfDescription, $ConfirmMessage, $ConfirmCaption))
 				{
-					[void]$PSBoundParameters.Remove('Path')
+                    $Item.SetAccessControl($FileOwner)
+                    Write-Verbose -Message "Set ownership to $Account on $($Item.FullName)"
+                }
+            }
+            else
+            {
+                $ConfirmMessage = "You are about to change the owner of $($Item.FullName) to $Account."
+				$WhatIfDescription = "Set Owner of $($Item.FullName)."
+				$ConfirmCaption = "Set Directory Owner"
+
+				if ($Force -or $PSCmdlet.ShouldProcess($WhatIfDescription, $ConfirmMessage, $ConfirmCaption))
+				{
+                    $Item.SetAccessControl($DirectoryOwner)
+                    Write-Verbose -Message "Set ownership to $Account on $($Item.FullName)"
+                }
+
+                if ($Recurse) 
+				{
 					Get-ChildItem $Item -Force -Recurse | ForEach-Object {
 						Set-Owner -Path $_.FullName -Account $Account
 					}
 				}
-			}
-		} 
-		catch [Exception] 
-		{
-			Write-Warning -Message "$($Item): $($_.Exception.Message)"
+            }
+        }
+        catch [Exception] {
+            Write-Warning -Message "$($Item.FullName): $($_.Exception.Message)"
         }
     }
 
-    End {  
-        #Remove priviledges that had been granted
-        [void][TokenAdjuster]::RemovePrivilege("SeRestorePrivilege") 
-        [void][TokenAdjuster]::RemovePrivilege("SeBackupPrivilege") 
-        [void][TokenAdjuster]::RemovePrivilege("SeTakeOwnershipPrivilege")     
+    End {
+        Set-SecurityPrivilege -Privileges @("SeRestorePrivilege","SeBackupPrivilege","SeTakeOwnershipPrivilege") -Disable
     }
 }
 
@@ -8599,6 +8467,308 @@ Function Get-NetAdapterErrorCode {
 	}
 }
 
+Function Set-LocalAdminPassword {
+	<#
+		.SYNOPSIS
+			Sets the local administrator password.
+
+		.DESCRIPTION
+			Sets the local administrator password and optionally enables the account if it is disabled.
+
+			If the password is not specified, the user will be prompted to enter the password when the cmdlet is run. The admin account is
+			identified by matching its SID to *-500, which should be unique for the local machine.
+
+		.PARAMETER Password
+			The new password for the local administrator account.
+
+		.PARAMETER EnableAccount
+			Specify to enable the local administrator account if it is disabled.
+
+		.INPUTS
+			System.Security.SecureString
+		
+		.OUTPUTS
+			None
+
+		.EXAMPLE 
+			Set-LocalAdminPassword -EnableAccount
+
+			The cmdlet will prompt the user to enter the new password.
+
+		.NOTES
+			AUTHOR: Michael Haken
+			LAST UPDATE: 10/23/2017
+	#>
+	[CmdletBinding()]
+	[OutputType()]
+    Param (
+        [Parameter(Position=0 , ValueFromPipeline=$true)]
+		[ValidateNotNull()]
+        [System.Security.SecureString]$Password,
+
+		[Parameter()]
+		[Switch]$EnableAccount
+    )
+    Begin {       
+    }
+    
+    Process {
+		$HostName = $env:COMPUTERNAME 
+        $Computer = [ADSI]"WinNT://$HostName,Computer" 
+
+		while ($Password -eq $null) 
+		{
+			$Password = Read-Host -AsSecureString -Prompt "Enter the new administrator password"
+		}
+
+		$Name = Get-LocalUser| Where-Object {$_.SID.Value -match "S-1-5-21-.*-500"} | Select-Object -ExpandProperty Name -First 1
+
+		Write-Verbose -Message "The local admin account is $Name"
+        $User = [ADSI]"WinNT://$HostName/$Name,User"
+        $PlainTextPass = Convert-SecureStringToString -SecureString $Password
+                
+		Write-Verbose -Message "Setting password."
+        $User.SetPassword($PlainTextPass)
+                
+		if ($EnableAccount) 
+		{
+			#The 0x0002 flag specifies that the account is disabled
+			#The binary AND operator will test the value to see if the bit is set, if it is, the account is disabled.
+			#Doing a binary OR would add the value to the flags, since it would not be present, the OR would add it
+			if ($User.UserFlags.Value -band "0x0002") 
+			{
+				Write-Verbose -Message "The account is current disabled with user flags $($User.UserFlags.Value)"
+				#The binary XOR will remove the flag, which enables the account, the XOR means that if both values have the bit set, the result does not
+				#If only 1 value has the bit set, then it will remain set, so we need to ensure that the bit is actually set with the -band above for the XOR to actually
+				#remove the disabled value
+				$User.UserFlags = $User.UserFlags -bxor "0x0002"
+				$User.SetInfo()
+			}
+		}
+    }
+    
+    End {        
+    }       
+}
+
+Function Set-SecurityPrivilege {
+	<#
+		.SYNOPSIS
+			Enables or disables security privileges for the current user's process.
+
+		.DESCRIPTION
+			This cmdlet enables or disables available security privileges for the current user.
+
+		.PARAMETER Privileges
+			The privileges to enable or disable.
+
+		.PARAMETER Enable
+			Enables the privileges.
+
+		.PARAMETER Disable
+			Disables the privileges.
+
+		.INPUTS
+			None
+		
+		.OUTPUTS
+			None
+
+		.EXAMPLE 
+			Set-SecurityPrivilege -Privileges SeSecurityPrivilege -Enable
+
+			Enables the SeSecurityPrivilege for the user running the cmdlet.
+
+		.NOTES
+			AUTHOR: Michael Haken
+			LAST UPDATE: 10/23/2017
+	#>
+	[CmdletBinding()]
+	[OutputType()]
+	Param(
+		## The privilege to adjust. This set is taken from
+		## http://msdn.microsoft.com/en-us/library/bb530716(VS.85).aspx
+		[Parameter(Mandatory = $true, ValueFromPipeline = $true, Position = 0)]
+		[ValidateSet(
+			"SeAssignPrimaryTokenPrivilege", "SeAuditPrivilege", "SeBackupPrivilege",
+			"SeChangeNotifyPrivilege", "SeCreateGlobalPrivilege", "SeCreatePagefilePrivilege",
+			"SeCreatePermanentPrivilege", "SeCreateSymbolicLinkPrivilege", "SeCreateTokenPrivilege",
+			"SeDebugPrivilege", "SeEnableDelegationPrivilege", "SeImpersonatePrivilege", "SeIncreaseBasePriorityPrivilege",
+			"SeIncreaseQuotaPrivilege", "SeIncreaseWorkingSetPrivilege", "SeLoadDriverPrivilege",
+			"SeLockMemoryPrivilege", "SeMachineAccountPrivilege", "SeManageVolumePrivilege",
+			"SeProfileSingleProcessPrivilege", "SeRelabelPrivilege", "SeRemoteShutdownPrivilege",
+			"SeRestorePrivilege", "SeSecurityPrivilege", "SeShutdownPrivilege", "SeSyncAgentPrivilege",
+			"SeSystemEnvironmentPrivilege", "SeSystemProfilePrivilege", "SeSystemtimePrivilege",
+			"SeTakeOwnershipPrivilege", "SeTcbPrivilege", "SeTimeZonePrivilege", "SeTrustedCredManAccessPrivilege",
+			"SeUndockPrivilege", "SeUnsolicitedInputPrivilege"
+		)]
+		[System.String[]]$Privileges,
+
+		[Parameter(ParameterSetName = "Enable", Mandatory = $true)]
+		[Switch]$Enable,
+
+		[Parameter(ParameterSetName = "Disable", Mandatory = $true)]
+		[Switch]$Disable
+	)
+
+	Begin {
+		if (!([System.Security.Principal.WindowsPrincipal][System.Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)) {
+			throw "Run the cmdlet with elevated credentials."
+		}
+
+		if (-not ([System.Management.Automation.PSTypeName]"BAMCIS.PowerShell.SecurityToken").Type) {
+            Add-Type -TypeDefinition $script:TokenSignature
+        }
+	}
+
+	Process {
+		foreach ($Privilege in $Privileges)
+		{
+			[BAMCIS.PowerShell.SecurityToken+TokPriv1Luid]$TokenPrivilege1Luid = New-Object BAMCIS.PowerShell.SecurityToken+TokPriv1Luid
+			$TokenPrivilege1Luid.Count = 1
+			$TokenPrivilege1Luid.Luid = 0
+
+			if ($Enable)
+			{
+				$TokenPrivilege1Luid.Attr = [BAMCIS.PowerShell.SecurityToken]::SE_PRIVILEGE_ENABLED
+			}
+			else 
+			{
+				$TokenPrivilege1Luid.Attr = [BAMCIS.PowerShell.SecurityToken]::SE_PRIVILEGE_DISABLED
+			}
+
+			[System.IntPtr]$TokenHandle = [System.IntPtr]::Zero
+            $Temp = $null
+
+			$ReturnValue = [BAMCIS.PowerShell.SecurityToken]::LookupPrivilegeValue($null, $Privilege, [ref]$Temp)
+            
+            if ($ReturnValue -eq $true)
+            {
+                $TokenPrivilege1Luid.Luid = $Temp
+
+			    $ReturnValue = [BAMCIS.PowerShell.SecurityToken]::OpenProcessToken([BAMCIS.PowerShell.SecurityToken]::GetCurrentProcess(), [BAMCIS.PowerShell.SecurityToken]::TOKEN_ADJUST_PRIVILEGES -BOR [BAMCIS.PowerShell.SecurityToken]::TOKEN_QUERY, [ref]$TokenHandle)
+  
+			    $DisableAllPrivileges = $false
+			    $ReturnValue = [BAMCIS.PowerShell.SecurityToken]::AdjustTokenPrivileges($TokenHandle, $DisableAllPrivileges, [ref]$TokenPrivilege1Luid, [System.Runtime.InteropServices.Marshal]::SizeOf($TokenPrivilege1Luid), [IntPtr]::Zero, [IntPtr]::Zero)
+
+			    if($ReturnValue -eq $null -or $ReturnValue -eq $false) 
+			    {
+				    throw (New-Object -TypeName System.Exception([System.ComponentModel.Win32Exception][System.Runtime.InteropServices.Marrshal]::GetLastWin32Error()))
+			    }
+            }
+            else
+            {
+                throw (New-Object -TypeName System.Exception([System.ComponentModel.Win32Exception][System.Runtime.InteropServices.Marrshal]::GetLastWin32Error()))
+            }
+		}
+	}
+
+	End {
+
+	}
+}
+
+Function Get-ComputerDomain {
+	<#
+		.SYNOPSIS
+			Retrieves the domain the computer is joined to.
+
+		.DESCRIPTION
+			This cmdlet retrieves the Active Directory domain the computer is joined to. If the computer is not domain joined, the computer name will be returned.
+
+		.PARAMETER ComputerName
+			The name of the computer to connect to and retrieve the domain information. If this parameter is omitted, information from the local computer is used.
+
+		.PARAMETER Credential
+			The credential to use to connect to the remote computer.
+
+		.PARAMETER CimSession
+			An existing CimSession to use to connect to a remote machine.
+
+		.INPUTS
+			None
+		
+		.OUTPUTS
+			System.String
+
+		.EXAMPLE 
+			Get-ComputerDomain
+
+			Gets the AD domain of the local computer.
+
+		.NOTES
+			AUTHOR: Michael Haken
+			LAST UPDATE: 10/23/2017
+	#>
+	[CmdletBinding(DefaultParameterSetName = "Computer")]
+	[OutputType([System.String])]
+	Param(
+		[Parameter(ParameterSetName = "Computer")]
+		[ValidateNotNullOrEmpty()]
+		[System.String]$ComputerName = [System.String]::Empty,
+
+		[Parameter(ParameterSetName = "Computer")]
+		[ValidateNotNull()]
+		[System.Management.Automation.Credential()]
+		[System.Management.Automation.PSCredential]$Credential = [System.Management.Automation.PSCredential]::Empty,
+
+		[Parameter(ParameterSetName = "Session")]
+		[ValidateNotNull()]
+        [Microsoft.Management.Infrastructure.CimSession]$CimSession = $null
+	)
+
+	Begin {
+
+	}
+
+	Process {
+		[System.Collections.Hashtable]$Splat = @{}
+		[System.Boolean]$EndSession = $false
+
+		switch ($PSCmdlet.ParameterSetName)
+		{
+			"Computer" {
+
+				if ($Credential -eq [System.Management.Automation.PSCredential]::Empty)
+				{
+					if (-not [System.String]::IsNullOrEmpty($ComputerName) -and $script:LocalNames -inotcontains $ComputerName)
+					{
+						$Splat.Add("ComputerName", $ComputerName)
+					}
+				}
+				else
+				{
+					if ([System.String]::IsNullOrEmpty($ComputerName))
+					{
+						$ComputerName = $env:COMPUTERNAME
+					}
+
+					$CimSession = New-CimSession -Credential $Credential -ComputerName $ComputerName
+					$Splat.Add("CimSession", $CimSession)
+					$EndSession = $true
+				}
+
+				break
+			}
+			"Session" {
+				$Splat.Add("CimSession", $CimSession)
+				break
+			}
+		}
+
+		Write-Output -InputObject (Get-CimInstance -ClassName Win32_ComputerSystem @Splat | Select-Object -ExpandProperty Domain)
+
+		if ($EndSession)
+		{
+			Remove-CimSession -CimSession $CimSession
+		}
+	}
+
+	End {
+
+	}
+}
+
 $script:IPv6Configs = @(
 	[PSCustomObject]@{Name="IPv6 Disabled On All Interfaces";Value="0xFFFFFFFF"},
 	[PSCustomObject]@{Name="IPv6 Enabled only on tunnel interfaces";Value="0xFFFFFFFE"}, 
@@ -8658,91 +8828,151 @@ $script:Ports = @(
 )
 
 $script:TokenSignature = @"
-public enum SECURITY_IMPERSONATION_LEVEL
+using System;
+using System.Runtime.InteropServices;
+
+namespace BAMCIS.PowerShell
 {
-    SecurityAnonymous = 0,
-    SecurityIdentification = 1,
-    SecurityImpersonation = 2,
-    SecurityDelegation = 3
+    public class SecurityToken
+    {
+        public enum SECURITY_IMPERSONATION_LEVEL
+        {
+            SecurityAnonymous = 0,
+            SecurityIdentification = 1,
+            SecurityImpersonation = 2,
+            SecurityDelegation = 3
+        }
+
+        [StructLayout(LayoutKind.Sequential, Pack = 1)]
+        public struct TokPriv1Luid
+        {
+	        public int Count;
+	        public long Luid;
+	        public int Attr;
+        }
+
+        public const int SE_PRIVILEGE_DISABLED = 0x00000000;
+        public const int SE_PRIVILEGE_ENABLED = 0x00000002;
+        public const int TOKEN_QUERY = 0x00000008;
+        public const int TOKEN_ADJUST_PRIVILEGES = 0x00000020;
+
+        public const UInt32 STANDARD_RIGHTS_REQUIRED = 0x000F0000;
+        public const UInt32 STANDARD_RIGHTS_READ = 0x00020000;
+        public const UInt32 TOKEN_ASSIGN_PRIMARY = 0x0001;
+        public const UInt32 TOKEN_DUPLICATE = 0x0002;
+        public const UInt32 TOKEN_IMPERSONATE = 0x0004;
+        public const UInt32 TOKEN_QUERY_SOURCE = 0x0010;
+        public const UInt32 TOKEN_ADJUST_GROUPS = 0x0040;
+        public const UInt32 TOKEN_ADJUST_DEFAULT = 0x0080;
+        public const UInt32 TOKEN_ADJUST_SESSIONID = 0x0100;
+        public const UInt32 TOKEN_READ = (STANDARD_RIGHTS_READ | TOKEN_QUERY);
+        public const UInt32 TOKEN_ALL_ACCESS = (STANDARD_RIGHTS_REQUIRED | TOKEN_ASSIGN_PRIMARY |
+	        TOKEN_DUPLICATE | TOKEN_IMPERSONATE | TOKEN_QUERY | TOKEN_QUERY_SOURCE |
+            TOKEN_ADJUST_PRIVILEGES | TOKEN_ADJUST_GROUPS | TOKEN_ADJUST_DEFAULT |
+            TOKEN_ADJUST_SESSIONID);
+
+        public const string SE_TIME_ZONE_NAMETEXT = "SeTimeZonePrivilege";
+        public const int ANYSIZE_ARRAY = 1;
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct LUID
+        {
+	        public UInt32 LowPart;
+	        public UInt32 HighPart;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct LUID_AND_ATTRIBUTES 
+        {
+	        public LUID Luid;
+	        public UInt32 Attributes;
+        }
+
+        public struct TOKEN_PRIVILEGES 
+        {
+	        public UInt32 PrivilegeCount;
+	        [MarshalAs(UnmanagedType.ByValArray, SizeConst=ANYSIZE_ARRAY)]
+	        public LUID_AND_ATTRIBUTES [] Privileges;
+        }
+
+        [DllImport("advapi32.dll", SetLastError=true)]
+        public extern static bool DuplicateToken(IntPtr ExistingTokenHandle, int SECURITY_IMPERSONATION_LEVEL, out IntPtr DuplicateTokenHandle);
+
+        [DllImport("advapi32.dll", SetLastError=true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool SetThreadToken(
+	        IntPtr PHThread,
+	        IntPtr Token
+        );
+
+        [DllImport("advapi32.dll", SetLastError=true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool OpenProcessToken(IntPtr ProcessHandle, UInt32 DesiredAccess, out IntPtr TokenHandle);
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        public static extern bool LookupPrivilegeValue(string host, string name, ref long pluid);
+
+        [DllImport("kernel32.dll", ExactSpelling = true)]
+        public static extern IntPtr GetCurrentProcess();
+
+        [DllImport("advapi32.dll", ExactSpelling = true, SetLastError = true)]
+        public static extern bool AdjustTokenPrivileges(IntPtr htok, bool disall, ref TokPriv1Luid newst, int len, IntPtr prev, IntPtr relen);
+
+        [DllImport( "kernel32.dll", CharSet = CharSet.Auto )]
+        public static extern bool CloseHandle(IntPtr handle);
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        public static extern bool RevertToSelf();  
+
+		public static bool AddPrivilege(string privilege)
+		{
+			try
+			{
+				bool ReturnValue;
+				TokPriv1Luid TokenPrivilege;
+				IntPtr ProcessHandle = GetCurrentProcess();
+				IntPtr TokenHandle = IntPtr.Zero;
+			
+				ReturnValue = OpenProcessToken(ProcessHandle, TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, out TokenHandle);
+				TokenPrivilege.Count = 1;
+				TokenPrivilege.Luid = 0;
+				TokenPrivilege.Attr = SE_PRIVILEGE_ENABLED;
+			
+				ReturnValue = LookupPrivilegeValue(null, privilege, ref TokenPrivilege.Luid);
+				ReturnValue = AdjustTokenPrivileges(TokenHandle, false, ref TokenPrivilege, 0, IntPtr.Zero, IntPtr.Zero);
+				return ReturnValue;
+		   }
+		   catch (Exception ex)
+		   {
+				throw ex;
+		   }
+		}
+
+		public static bool RemovePrivilege(string privilege)
+		{
+			try
+			{
+				bool ReturnValue;
+				TokPriv1Luid TokenPrivilege;
+				IntPtr ProcessHandle = GetCurrentProcess();
+				IntPtr TokenHandle = IntPtr.Zero;
+			
+				ReturnValue = OpenProcessToken(ProcessHandle, TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, out TokenHandle);
+				TokenPrivilege.Count = 1;
+				TokenPrivilege.Luid = 0;
+				TokenPrivilege.Attr = SE_PRIVILEGE_DISABLED;
+			
+				ReturnValue = LookupPrivilegeValue(null, privilege, ref TokenPrivilege.Luid);
+				ReturnValue = AdjustTokenPrivileges(TokenHandle, false, ref TokenPrivilege, 0, IntPtr.Zero, IntPtr.Zero);
+				return ReturnValue;
+		   }
+		   catch (Exception ex)
+		   {
+				throw ex;
+		   }
+		}
+    }
 }
-
-[StructLayout(LayoutKind.Sequential, Pack = 1)]
-public struct TokPriv1Luid
-{
-	public int Count;
-	public long Luid;
-	public int Attr;
-}
-
-public const int SE_PRIVILEGE_ENABLED = 0x00000002;
-public const int TOKEN_QUERY = 0x00000008;
-public const int TOKEN_ADJUST_PRIVILEGES = 0x00000020;
-public const UInt32 STANDARD_RIGHTS_REQUIRED = 0x000F0000;
-
-public const UInt32 STANDARD_RIGHTS_READ = 0x00020000;
-public const UInt32 TOKEN_ASSIGN_PRIMARY = 0x0001;
-public const UInt32 TOKEN_DUPLICATE = 0x0002;
-public const UInt32 TOKEN_IMPERSONATE = 0x0004;
-public const UInt32 TOKEN_QUERY_SOURCE = 0x0010;
-public const UInt32 TOKEN_ADJUST_GROUPS = 0x0040;
-public const UInt32 TOKEN_ADJUST_DEFAULT = 0x0080;
-public const UInt32 TOKEN_ADJUST_SESSIONID = 0x0100;
-public const UInt32 TOKEN_READ = (STANDARD_RIGHTS_READ | TOKEN_QUERY);
-public const UInt32 TOKEN_ALL_ACCESS = (STANDARD_RIGHTS_REQUIRED | TOKEN_ASSIGN_PRIMARY |
-	TOKEN_DUPLICATE | TOKEN_IMPERSONATE | TOKEN_QUERY | TOKEN_QUERY_SOURCE |
-    TOKEN_ADJUST_PRIVILEGES | TOKEN_ADJUST_GROUPS | TOKEN_ADJUST_DEFAULT |
-    TOKEN_ADJUST_SESSIONID);
-
-public const string SE_TIME_ZONE_NAMETEXT = "SeTimeZonePrivilege";
-public const int ANYSIZE_ARRAY = 1;
-
-[StructLayout(LayoutKind.Sequential)]
-public struct LUID
-{
-	public UInt32 LowPart;
-	public UInt32 HighPart;
-}
-
-[StructLayout(LayoutKind.Sequential)]
-public struct LUID_AND_ATTRIBUTES {
-	public LUID Luid;
-	public UInt32 Attributes;
-}
-
-public struct TOKEN_PRIVILEGES {
-	public UInt32 PrivilegeCount;
-	[MarshalAs(UnmanagedType.ByValArray, SizeConst=ANYSIZE_ARRAY)]
-	public LUID_AND_ATTRIBUTES [] Privileges;
-}
-
-[DllImport("advapi32.dll", SetLastError=true)]
-public extern static bool DuplicateToken(IntPtr ExistingTokenHandle, int SECURITY_IMPERSONATION_LEVEL, out IntPtr DuplicateTokenHandle);
-
-[DllImport("advapi32.dll", SetLastError=true)]
-[return: MarshalAs(UnmanagedType.Bool)]
-public static extern bool SetThreadToken(
-	IntPtr PHThread,
-	IntPtr Token
-);
-
-[DllImport("advapi32.dll", SetLastError=true)]
-[return: MarshalAs(UnmanagedType.Bool)]
-public static extern bool OpenProcessToken(IntPtr ProcessHandle, UInt32 DesiredAccess, out IntPtr TokenHandle);
-
-[DllImport("advapi32.dll", SetLastError = true)]
-public static extern bool LookupPrivilegeValue(string host, string name, ref long pluid);
-
-[DllImport("kernel32.dll", ExactSpelling = true)]
-public static extern IntPtr GetCurrentProcess();
-
-[DllImport("advapi32.dll", ExactSpelling = true, SetLastError = true)]
-public static extern bool AdjustTokenPrivileges(IntPtr htok, bool disall, ref TokPriv1Luid newst, int len, IntPtr prev, IntPtr relen);
-
-[DllImport( "kernel32.dll", CharSet = CharSet.Auto )]
-public static extern bool CloseHandle( IntPtr handle );
-
-[DllImport("advapi32.dll", SetLastError = true)]
-public static extern bool RevertToSelf();
 "@
 
 $script:LsaSignature = @"

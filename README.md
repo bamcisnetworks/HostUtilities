@@ -2,6 +2,15 @@
 
 ## Revision History
 
+### 1.1.3.0
+Added functions:
+		Set-LocalAdminPassword
+		Set-SecurityPrivilege
+		Get-ComputerDomain
+
+Updated function:
+		Set-ProcessToken (fixed elevating SeDebugPrivilege)
+
 ### 1.1.2.6
 Updated the Set-NetAdapterDnsSuffix cmdlet to use CIM cmdlets.
 
@@ -30,7 +39,7 @@ Changed the parameter of ConvertTo-Hashtable from ExcludedKeys to Exclude.
 Added the ConvertTo-Hashtable cmdlet.
 
 ### 1.1.1.0
-Added the Merge-Hashtables cmdlet. Changed Start-TaskSchedulerHistory to Enable-TaskSchedulerHistory (left and alias). Added alias "using" to Invoke-Using.
+Added the Merge-Hashtables cmdlet. Changed Start-TaskSchedulerHistory to Enable-TaskSchedulerHistory (left an alias). Added alias "using" to Invoke-Using.
 
 ### 1.1.0.2
 Updated the progress notification for ForEach-ObjectParallel.
