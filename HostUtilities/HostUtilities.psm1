@@ -1,234 +1,14 @@
-
 $script:LocalNames = @(".", "localhost", "127.0.0.1", "", $env:COMPUTERNAME)
 
-Function Reset-WindowsUpdate {
-	<#
-		.SYNOPSIS	
-			The cmdlet resets all of the windows update components and re-registers the dlls.
+#region Token Manipulation
 
-		.DESCRIPTION
-			Several services are stopped, the log files and directories are renamed, several dlls are re-registered, and then the services are restarted.
-
-		.PARAMETER AutomaticReboot
-			Specify whether the computer should automatically reboot after completing the reset.
-
-		.INPUTS
-			None
-
-		.OUTPUTS
-			None
-
-		.EXAMPLE
-			Reset-WindwsUpdate
-
-			Resets windows update and does not automatically reboot.
-
-		.EXAMPLE
-			Reset-WindowsUpdate -AutomaticReboot
-
-			Resets windows update and automatically reboots the machine.
-
-		.NOTES
-			AUTHOR: Michael Haken
-			LAST UPDATED: 11/14/2016
-
-			The command should be run with administrative credentials.
-	#>
-
-	[CmdletBinding()]
-	Param(
-		[Parameter(Position=0)]
-		[switch]$AutomaticReboot = $false
-	)
-
-	Begin {
-		if(!(Test-IsLocalAdmin)) {
-			throw "This cmdlet must be run with admin credentials."
-		}
-	}
-
-	Process
-	{
-		try
-		{
-			Stop-Service -Name BITS -ErrorAction Stop
-		}
-		catch [Exception]
-		{
-			Write-Warning -Message "Could not stop the BITS service"
-			Exit 1
-		}
-
-		try
-		{
-			Stop-Service -Name wuauserv -ErrorAction Stop
-		}
-		catch [Exception]
-		{
-			Write-Warning -Message "Could not stop the wuauserv service"
-			Exit 1
-		}
-
-		try
-		{
-			Stop-Service -Name AppIDSvc -ErrorAction Stop
-		}
-		catch [Exception]
-		{
-			Write-Warning -Message "Could not stop the AppIDSvc service"
-			Exit 1
-		}
-
-		try
-		{
-			Stop-Service -Name CryptSvc -ErrorAction Stop
-		}
-		catch [Exception]
-		{
-			Write-Warning -Message "Could not stop the CryptSvc service"
-			Exit 1
-		}
-
-		try
-		{
-			Clear-DnsClientCache -ErrorAction Stop
-		}
-		catch [Exception]
-		{
-			Write-Warning -Message "Could not clear the dns client cache"
-		}
-
-		Remove-Item -Path "$env:ALLUSERSPROFILE\Application Data\Microsoft\Network\Downloader\qmgr*.dat"
-
-		if (Test-Path -Path "$env:SYSTEMROOT\winsxs\pending.xml.bak")
-		{
-			Remove-Item -Path "$env:SYSTEMROOT\winsxs\pending.xml.bak" -Recurse -Force
-		}
-
-		if (Test-Path -Path "$env:SYSTEMROOT\winsxs\pending.xml")
-		{
-			Rename-Item -Path "$env:SYSTEMROOT\winsxs\pending.xml" -NewName "$env:SYSTEMROOT\winsxs\pending.xml.bak"
-		}
-
-		if (Test-Path -Path "$env:SYSTEMROOT\SoftwareDistribution.bak")
-		{
-			Remove-Item -Path "$env:SYSTEMROOT\SoftwareDistribution.bak" -Recurse -Force
-		}
-
-		if (Test-Path -Path "$env:SYSTEMROOT\SoftwareDistribution") 
-		{
-			Rename-Item -Path "$env:SYSTEMROOT\SoftwareDistribution" -NewName "$env:SYSTEMROOT\SoftwareDistribution.bak"
-		}
-
-		if (Test-Path -Path "$env:SYSTEMROOT\system32\Catroot2.bak") 
-		{
-			Remove-Item -Path "$env:SYSTEMROOT\system32\Catroot2.bak" -Recurse -Force
-		}
-
-		if (Test-Path -Path "$env:SYSTEMROOT\system32\Catroot2") 
-		{
-			Rename-Item -Path "$env:SYSTEMROOT\system32\Catroot2" -NewName "$env:SYSTEMROOT\system32\Catroot2.bak"
-		}
-
-		if (Test-Path -Path "$env:SYSTEMROOT\WindowsUpdate.log.bak")
-		{
-			Remove-Item -Path "$env:SYSTEMROOT\WindowsUpdate.log.bak" -Recurse -Force
-		}
-
-		if (Test-Path -Path "$env:SYSTEMROOT\WindowsUpdate.log")
-		{
-			Rename-Item -Path "$env:SYSTEMROOT\WindowsUpdate.log" -NewName "$env:SYSTEMROOT\WindowsUpdate.log.bak"
-		}
-
-		& "$env:SYSTEMROOT\system32\sc.exe" sdset "BITS" "D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWLOCRRC;;;AU)(A;;CCLCSWRPWPDTLOCRRC;;;PU)" | Out-Null
-		& "$env:SYSTEMROOT\system32\sc.exe" sdset "wuauserv" "D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWLOCRRC;;;AU)(A;;CCLCSWRPWPDTLOCRRC;;;PU)" | Out-Null
-
-		regsvr32.exe /s atl.dll 
-		regsvr32.exe /s urlmon.dll 
-		regsvr32.exe /s mshtml.dll 
-		regsvr32.exe /s shdocvw.dll 
-		regsvr32.exe /s browseui.dll 
-		regsvr32.exe /s jscript.dll 
-		regsvr32.exe /s vbscript.dll 
-		regsvr32.exe /s scrrun.dll 
-		regsvr32.exe /s msxml.dll 
-		regsvr32.exe /s msxml3.dll 
-		regsvr32.exe /s msxml6.dll 
-		regsvr32.exe /s actxprxy.dll 
-		regsvr32.exe /s softpub.dll 
-		regsvr32.exe /s wintrust.dll 
-		regsvr32.exe /s dssenh.dll 
-		regsvr32.exe /s rsaenh.dll 
-		regsvr32.exe /s gpkcsp.dll 
-		regsvr32.exe /s sccbase.dll 
-		regsvr32.exe /s slbcsp.dll 
-		regsvr32.exe /s cryptdlg.dll 
-		regsvr32.exe /s oleaut32.dll 
-		regsvr32.exe /s ole32.dll 
-		regsvr32.exe /s shell32.dll 
-		regsvr32.exe /s initpki.dll 
-		regsvr32.exe /s wuapi.dll 
-		regsvr32.exe /s wuaueng.dll 
-		regsvr32.exe /s wuaueng1.dll 
-		regsvr32.exe /s wucltui.dll 
-		regsvr32.exe /s wups.dll 
-		regsvr32.exe /s wups2.dll 
-		regsvr32.exe /s wuweb.dll 
-		regsvr32.exe /s qmgr.dll 
-		regsvr32.exe /s qmgrprxy.dll 
-		regsvr32.exe /s wucltux.dll 
-		regsvr32.exe /s muweb.dll 
-		regsvr32.exe /s wuwebv.dll
-		regsvr32 /s wudriver.dll
-		netsh winsock reset | Out-Null
-		netsh winsock reset proxy | Out-Null
-
-		Start-Service -Name BITS
-		Start-Service -Name wuauserv
-		Start-Service -Name AppIDSvc
-		Start-Service -Name CryptSvc
-
-		Write-Host "Successfully reset Windows Update" -ForegroundColor Green
-
-		if ($AutomaticReboot) 
-		{
-			Restart-Computer -Force
-		}
-		else 
-		{
-			$Title = "Reboot Now"
-			$Message = "A reboot is required to complete the reset, reboot now?"
-
-			$Yes = New-Object System.Management.Automation.Host.ChoiceDescription "&Yes", `
-			"Reboots the computer immediately."
-
-			$No = New-Object System.Management.Automation.Host.ChoiceDescription "&No", `
-			"Does not reboot the computer."
-
-			$Options = [System.Management.Automation.Host.ChoiceDescription[]]($Yes, $No)
-
-			$Result = $host.ui.PromptForChoice($Title, $Message, $Options, 0) 
-
-			if ($Result -eq 0)
-			{
-				Restart-Computer -Force
-			}
-		}
-	}
-
-	End {
-	}
-}
-
-Function Get-GroupsFromToken {
-	<#
+Function Get-TokenGroups {
+    <#
 		.SYNOPSIS
 			Enumerates the SIDs that are maintained in a user's access token issued at logon and translates the SIDs to group names.
 
 		.DESCRIPTION
 			The function gets the access token for the user that was issued at their logon. It reads the TOKEN_GROUPS from the access token and retrieves their SIDs from unmanaged memory. It then attempts to translate these SIDs to group names. The function includes all group memberships inherited from nested grouping.
-
-			The function is run as a job so it executes in a new user context.
 
 		.INPUTS
 			None
@@ -237,198 +17,115 @@ Function Get-GroupsFromToken {
 			System.String[]
 
 		.EXAMPLE
-			Get-GroupsFromToken
+			Get-TokenGroups
 
 			Returns an array of group names and/or SIDs in the access token for the current user.
 
 		.NOTES
 			AUTHOR: Michael Haken
-			LAST UPDATED: 11/14/2016
+			LAST UPDATED: 10/24/2017
 	#>
-	[CmdletBinding()]
-	Param(
-	)
+    [CmdletBinding()]
+    [OutputType([System.String[]])]
+    Param(
 
-	Begin {}
+    )
 
-	Process
-	{
-		$Job = Start-Job -ScriptBlock {
+    Begin {
+        
+    }
 
-			Add-Type -Assembly System.ComponentModel
-	
-			$Signatures = @"
-		[DllImport("advapi32.dll", SetLastError=true)]
-		public static extern bool GetTokenInformation( 
-												IntPtr TokenHandle,
-												int TokenInformationClass,
-												IntPtr TokenInformation,
-												uint TokenInformationLength,
-												out uint ReturnLength
-													 );
-		[DllImport("advapi32", SetLastError=true, CharSet=CharSet.Auto)]
-		public static extern bool ConvertSidToStringSid(
-												IntPtr pSID,
-												[In,Out,MarshalAs(UnmanagedType.LPTStr)] ref string pStringSid
-												);
-"@
+    Process {
 
-			$AdvApi32 = Add-Type -MemberDefinition $Signatures -Name "AdvApi32" -Namespace "PsInvoke.NativeMethods" -PassThru -ErrorAction SilentlyContinue
-
-			$TokenClasses = @"
-		using System;
-		using System.Runtime.InteropServices;
-
-		namespace TokenServices 
-		{
-			public enum TOKEN_INFORMATION_CLASS
-			{
-				 TokenUser = 1,
-				 TokenGroups,
-				 TokenPrivileges,
-				 TokenOwner,
-				 TokenPrimaryGroup,
-				 TokenDefaultDacl,
-				 TokenSource,
-				 TokenType,
-				 TokenImpersonationLevel,
-				 TokenStatistics,
-				 TokenRestrictedSids,
-				 TokenSessionId,
-				 TokenGroupsAndPrivileges,
-				 TokenSessionReference,
-				 TokenSandBoxInert,
-				 TokenAuditPolicy,
-				 TokenOrigin,
-				 TokenElevationType,
-				 TokenLinkedToken,
-				 TokenElevation,
-				 TokenHasRestrictions,
-				 TokenAccessInformation,
-				 TokenVirtualizationAllowed,
-				 TokenVirtualizationEnabled,
-				 TokenIntegrityLevel,
-				 TokenUiAccess,
-				 TokenMandatoryPolicy,
-				 TokenLogonSid,
-				 MaxTokenInfoClass
-			}
-
-			public enum TOKEN_ELEVATION_TYPE
-			{
-				TokenElevationTypeDefault = 1,
-				TokenElevationTypeFull,
-				TokenElevationTypeLimited
-			}
-
-			public struct TOKEN_USER 
-			{ 
-				public SID_AND_ATTRIBUTES User; 
-			} 
- 
-			[StructLayout(LayoutKind.Sequential)]
-			public struct SID_AND_ATTRIBUTES
-			{
-				public IntPtr Sid;
-				public UInt32 Attributes;    
-			}
-
-			[StructLayout(LayoutKind.Sequential)]
-			public struct TOKEN_GROUPS
-			{
-				public UInt32 GroupCount;
-				[MarshalAs(UnmanagedType.ByValArray)] 
-				public SID_AND_ATTRIBUTES[] Groups;
-			}
+        if (!([System.Management.Automation.PSTypeName]"BAMCIS.PowerShell.SecurityToken").Type) {
+			Add-Type -TypeDefinition $script:TokenSignature
 		}
-"@
-	
-			Add-Type $TokenClasses -ErrorAction SilentlyContinue
 
-			$CloseHandleSignature = @"
-		[DllImport( "kernel32.dll", CharSet = CharSet.Auto )]
-		public static extern bool CloseHandle( IntPtr handle );
-"@
+        [UInt32]$TokenInformationLength = 0
+        
+        # This first call will get the token information length
+        $ResultValue = [BAMCIS.PowerShell.SecurityToken]::GetTokenInformation(
+                                                                                [System.Security.Principal.WindowsIdentity]::GetCurrent().Token,
+                                                                                [BAMCIS.PowerShell.SecurityToken+TOKEN_INFORMATION_CLASS]::TokenGroups,
+                                                                                [System.IntPtr]::Zero,
+                                                                                $TokenInformationLength,
+                                                                                [ref]$TokenInformationLength
+                                                                            )
 
-			$Kernel32 = Add-Type -MemberDefinition $CloseHandleSignature -Name "Kernel32" -Namespace "PsInvoke.NativeMethods" -PassThru -ErrorAction SilentlyContinue
+        if ($TokenInformationLength -gt 0)
+        {
+            # Create a pointer to hold the information in the token now that we have the length needed
+            [IntPtr]$TokenInformation = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($TokenInformationLength)
+            $ResultValue = [BAMCIS.PowerShell.SecurityToken]::GetTokenInformation(
+                                                                                [System.Security.Principal.WindowsIdentity]::GetCurrent().Token,
+                                                                                [BAMCIS.PowerShell.SecurityToken+TOKEN_INFORMATION_CLASS]::TokenGroups,
+                                                                                $TokenInformation,
+                                                                                $TokenInformationLength,
+                                                                                [ref]$TokenInformationLength
+                                                                            )
 
-			[UInt32]$TokenInformationLength = 0
+            if ($ResultValue -eq $true)
+            {
+                [BAMCIS.PowerShell.SecurityToken+TOKEN_GROUPS]$Groups = [System.Runtime.InteropServices.Marshal]::PtrToStructure($TokenInformation, [System.Type][BAMCIS.PowerShell.SecurityToken+TOKEN_GROUPS])
+                [System.Int32]$Size = [System.Runtime.InteropServices.Marshal]::SizeOf([System.Type][BAMCIS.PowerShell.SecurityToken+SID_AND_ATTRIBUTES])
 
-			$Success = $AdvApi32::GetTokenInformation( [System.Security.Principal.WindowsIdentity]::GetCurrent().Token,
-													   [TokenServices.TOKEN_INFORMATION_CLASS]::TokenGroups,
-													   [IntPtr]::Zero,
-													   $TokenInformationLength, 
-													   [Ref]$TokenInformationLength)
+                try
+                {
+                    # Start at the TokenInformation pointer,
+                    # The compiler aligns each of the fieds in the TOKEN_GROUP struct on the nearest n byte boundary where n is 4 on 32 bit and 8 on 64 bit 
+                    # The size of an IntPtr is 8 on 64 bit and 4 on 32 bit
+                    [System.Int64]$Base = $TokenInformation.ToInt64() + [System.IntPtr]::Size
 
+                    [System.String[]]$GroupResults = @()
 
-			if ($TokenInformationLength -gt 0)
-			{
-				[IntPtr]$TokenInformation = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($TokenInformationLength)
+                    for ($i = 0; $i -lt $Groups.GroupCount; $i++)
+                    {
+                        [System.Int64]$Offset = $Base + ($i * $Size)
 
-				$Success = $AdvApi32::GetTokenInformation(  
-															[System.Security.Principal.WindowsIdentity]::GetCurrent().Token,
-															[TokenServices.TOKEN_INFORMATION_CLASS]::TokenGroups,
-															$TokenInformation,
-															$TokenInformationLength, 
-															[Ref]$TokenInformationLength
-														 )
-
-				if ($TokenInformationLength -gt 0) 
-				{
-					$GroupArray = @()
-
-					try
-					{
-						[TokenServices.TOKEN_GROUPS]$Groups = [System.Runtime.InteropServices.Marshal]::PtrToStructure($TokenInformation, [System.Type][TokenServices.TOKEN_GROUPS])
-						$SidAndAttrs = New-Object -TypeName TokenServices.SID_AND_ATTRIBUTES
-						[int]$SidAndAttrsSize = [System.Runtime.InteropServices.Marshal]::SizeOf($SidAndAttrs)
-
-						for ($i = 0; $i -lt $Groups.GroupCount; $i++) 
-						{
-							[TokenServices.SID_AND_ATTRIBUTES]$SidAndAttrsGroup = [System.Runtime.InteropServices.Marshal]::PtrToStructure([IntPtr]($TokenInformation.ToInt64() + ($i * $SidAndAttrsSize) + [IntPtr]::Size), [System.Type][TokenServices.SID_AND_ATTRIBUTES]);
+                        [BAMCIS.PowerShell.SecurityToken+SID_AND_ATTRIBUTES]$SidAndAttrsGroup = [System.Runtime.InteropServices.Marshal]::PtrToStructure([IntPtr]($Offset), [System.Type][BAMCIS.PowerShell.SecurityToken+SID_AND_ATTRIBUTES])
+                        [System.String]$Sid = [System.String]::Empty
+                        $ResultValue = [BAMCIS.PowerShell.SecurityToken]::ConvertSidToStringSid($SidAndAttrsGroup.Sid, [ref]$Sid)
                         
-							[string]$SidString = ""
-							$Success = $AdvApi32::ConvertSidToStringSid($SidAndAttrsGroup.Sid, [Ref]$SidString)
-							try
-							{
-								$Group = (New-Object System.Security.Principal.SecurityIdentifier($SidString)).Translate([System.Security.Principal.NTAccount]) | Select-Object -ExpandProperty Value
-								$GroupArray += $Group
-							}
-							catch [Exception]
-							{
-								$GroupArray += $SidString
-								Write-Warning -Message $_.Exception.Message
-							}
-						}
+                        if ($ResultValue -eq $true)
+                        {
+                            try
+                            {
+                                $Group = (New-Object System.Security.Principal.SecurityIdentifier($Sid)).Translate([System.Security.Principal.NTAccount]) | Select-Object -ExpandProperty Value
+							    $GroupResults += $Group
+                            }
+                            catch [Exception] 
+                            {
+                                $GroupResults += $Sid
+                                Write-Log -ErrorRecord $_ -Level WARNING
+                            }
+                        }
+                        else
+                        {
+                            Write-Log -Message "Failed to get SID for group $i : $((New-Object System.ComponentModel.Win32Exception([System.Runtime.InteropServices.Marshal]::GetLastWin32Error())).Message)." -Level WARNING
+                        }
+                    }
 
-						Write-Output -InputObject $GroupArray
-					}
-					catch [Exception]
-					{
-						Write-Warning -Message $_.Exception.Message
-					}
-					finally
-					{
-						$Kernel32::CloseHandle($TokenInformation) | Out-Null
-					}
-				}
-				else
-				{
-					$Kernel32::CloseHandle($TokenInformation) | Out-Null
-					Write-Warning -Message (New-Object System.ComponentModel.Win32Exception([System.Runtime.InteropServices.Marshal]::GetLastWin32Error())).Message
-				}
-			}
-			else 
-			{
-				Write-Warning -Message (New-Object System.ComponentModel.Win32Exception([System.Runtime.InteropServices.Marshal]::GetLastWin32Error())).Message
-			}
-		}
+                    Write-Output -InputObject $GroupResults
+                }
+                catch [Exception]
+                {
+                    Write-Log -ErrorRecord $_ -Level FATAL
+                }
+                finally
+                {
+                    [BAMCIS.PowerShell.SecurityToken]::CloseHandle($TokenInformation) | Out-Null
+                }
+            }
+            else
+            {
+                [BAMCIS.PowerShell.SecurityToken]::CloseHandle($TokenInformation) | Out-Null
+				Write-Log -Message (New-Object System.ComponentModel.Win32Exception([System.Runtime.InteropServices.Marshal]::GetLastWin32Error())).Message -Level WARNING
+            }
+        }
+    }
 
-		Wait-Job -Job $Job | Out-Null
-		Write-Output -InputObject (Receive-Job $Job)
-	}
-
-	End {}
+    End {
+    }
 }
 
 Function Update-TokenGroupMembership {
@@ -467,17 +164,18 @@ Function Update-TokenGroupMembership {
 
 	#>
 	[CmdletBinding()]
+	[OutputType()]
 	Param(
-		[Parameter(Position=0)]
-		[PSCredential]$Credential = [PSCredential]::Empty,
-		[Parameter(Position=1)]
-		[switch]$UseSmartcard = $false
+		[Parameter(Mandatory = $true)]
+		[ValidateNotNull()]
+		[System.Management.Automation.Credential()]
+		[System.Management.Automation.PSCredential]$Credential = [System.Management.Automation.PSCredential]::Empty,
+
+		[Parameter()]
+		[Switch]$UseSmartcard
 	)
 
 	Begin {
-		if ($Credential -eq $null) {
-			$Credential = [System.Management.Automation.PSCredential]::Empty
-		}
 	}
 
 	Process
@@ -505,7 +203,7 @@ Function Update-TokenGroupMembership {
 			& "$env:SYSTEMROOT\system32\runas.exe" "/user:$env:USERDOMAIN\$env:USERNAME" "/smartcard" "explorer.exe" 
 		}
 
-		if ($Credential -ne [PSCredential]::Empty) {
+		if ($Credential -ne [System.Management.Automation.PSCredential]::Empty) {
 
 			$Command = @"
 		`$Groups = whoami /groups /FO CSV | ConvertFrom-Csv | Select-Object -ExpandProperty "Group Name"
@@ -574,6 +272,364 @@ Function Update-TokenGroupMembership {
 	End {}
 }
 
+Function Get-ProcessToken {
+	<#
+		.SYNOPSIS
+			Gets the token handle for a specified process.
+
+		.DESCRIPTION
+			The Get-ProcessToken cmdlet gets a token handle pointer for a specified process.
+			
+            The CmdLet must be run with elevated permissions.
+
+		.PARAMETER ProcessName
+			The name of the process to get a token handle for.
+
+		.PARAMETER ProcessId
+			The Id of the process to get a token handle for.
+
+		.PARAMETER CloseHandle
+			Specifies if the handle to the token should be closed. Do not close the handle if you want to duplicate the token in another process.		
+
+		.EXAMPLE
+			Get-ProcessToken -ProcessName lsass
+
+			Gets the token handle for the lsass process.
+
+		.INPUTS
+			System.String, System.Int32
+
+		.OUTPUTS
+            System.IntPtr
+
+		.NOTES
+			AUTHOR: Michael Haken
+			LAST UPDATE: 3/25/2016
+	#>
+
+	[CmdletBinding()]
+	[OutputType([System.IntPtr])]
+	Param(
+		[Parameter()]
+		[Switch]$CloseHandle
+	)
+
+	DynamicParam {
+		# Create the dictionary 
+        $RuntimeParameterDictionary = New-Object -TypeName System.Management.Automation.RuntimeDefinedParameterDictionary
+
+		$Set = Get-Process | Select-Object -ExpandProperty Name 
+		New-DynamicParameter -Name "ProcessName" -Alias "Name" -Mandatory -ParameterSets "Name" -Type ([System.String]) -Position 0 -ValueFromPipeline -ValidateSet $Set -RuntimeParameterDictionary $RuntimeParameterDictionary | Out-Null
+
+		$Set = Get-Process | Select-Object -ExpandProperty Id 
+		New-DynamicParameter -Name "ProcessId" -Alias "Id" -Mandatory -ParameterSets "Id" -Type ([System.Int32]) -Position 0 -ValueFromPipeline -ValidateSet $Set -RuntimeParameterDictionary $RuntimeParameterDictionary | Out-Null
+		
+		return $RuntimeParameterDictionary
+	}
+
+	Begin {
+
+		if (-not (Test-IsLocalAdmin))
+		{
+			throw "Run the cmdlet with elevated credentials."
+		}
+
+		if (!([System.Management.Automation.PSTypeName]"BAMCIS.PowerShell.SecurityToken").Type) {
+			Add-Type -TypeDefinition $script:TokenSignature
+		}
+	}
+
+	Process {
+        [IntPtr]$DulicateTokenHandle = [IntPtr]::Zero
+        [IntPtr]$ProcessTokenHandle = [IntPtr]::Zero
+
+        try {
+			switch ($PSCmdlet.ParameterSetName) {
+				"Name" {
+					$Process = Get-Process -Name $PSBoundParameters["ProcessName"]
+					break
+				}
+				"Id" {
+					$Process = Get-Process -Id $PSBoundParameters["ProcessId"]
+					break
+				}
+				default {
+					throw "Cannot determine parameter set."
+				}
+			}
+
+		    $ReturnValue = [BAMCIS.PowerShell.SecurityToken]::OpenProcessToken($Process.Handle, ([BAMCIS.PowerShell.SecurityToken]::TOKEN_IMPERSONATE -BOR [BAMCIS.PowerShell.SecurityToken]::TOKEN_DUPLICATE), [ref]$ProcessTokenHandle)
+		    $ReturnValue = [BAMCIS.PowerShell.SecurityToken]::DuplicateToken($ProcessTokenHandle, [BAMCIS.PowerShell.SecurityToken+SECURITY_IMPERSONATION_LEVEL]::SecurityImpersonation, [ref]$DulicateTokenHandle)
+		
+		    if($ReturnValue -eq $null -or $ReturnValue -eq $false) {
+			    throw (New-Object -TypeName System.Exception([System.ComponentModel.Win32Exception][System.Runtime.InteropServices.marshal]::GetLastWin32Error()))
+		    }
+        }
+        finally {
+            [BAMCIS.PowerShell.SecurityToken]::CloseHandle($ProcessTokenHandle) | Out-Null
+
+			if ($CloseHandle) {
+				[BAMCIS.PowerShell.SecurityToken]::CloseHandle($DulicateTokenHandle) | Out-Null
+			}
+        }
+
+		Write-Output -InputObject $DulicateTokenHandle
+	}
+
+	End {		
+	}
+}
+
+Function Set-ProcessToken {
+	<#
+		.SYNOPSIS
+			Replaces the process token for the current process thread with a token from another process.
+
+		.DESCRIPTION
+			The Set-ProcessToken cmdlet takes a token handle from another process and then sets the process thread to use that token. Then it closes the token handle. 
+
+			The passed token handle must not be closed before it is passed.
+			
+            The CmdLet must be run with elevated permissions.
+
+		.PARAMETER TokenHandle
+			The Token Handle pointer that will replace the current process thread token.
+
+		.PARAMETER ElevatePrivileges
+			Adds the SeDebugPrivilege to the current process thread, which may be needed to replace the current process thread token.	
+
+		.EXAMPLE
+			Get-ProcessToken -ProcessName lsass | Set-ProcessToken 
+
+			Gets the token handle for the lsass process and replaces the current process thread token.
+
+		.INPUTS
+			System.IntPtr
+
+		.OUTPUTS
+            None
+
+		.NOTES
+			AUTHOR: Michael Haken
+			LAST UPDATE: 10/23/2017
+	#>
+	[CmdletBinding()]
+	[OutputType()]
+	Param(
+		[Parameter(Mandatory = $true, Position = 0, ValueFromPipeline = $true)]
+		[System.IntPtr]$TokenHandle,
+
+		[Parameter()]
+		[Switch]$ElevatePrivileges
+	)
+
+	Begin {
+		if (-not (Test-IsLocalAdmin)) {
+			throw "Run the cmdlet with elevated credentials."
+		}
+	}
+
+	Process {
+		if (!([System.Management.Automation.PSTypeName]"BAMCIS.PowerShell.SecurityToken").Type) {
+			Add-Type -TypeDefinition $script:TokenSignature
+		}
+
+		if ($ElevatePrivileges) {
+			Set-TokenPrivilege -Privileges SeDebugPrivilege -Enable
+		}
+
+		try {
+			$ReturnValue = [BAMCIS.PowerShell.SecurityToken]::SetThreadToken([IntPtr]::Zero, $TokenHandle)
+
+			if($ReturnValue -eq $null -or $ReturnValue -eq $false) {
+			    throw (New-Object -TypeName System.Exception([System.ComponentModel.Win32Exception][System.Runtime.InteropServices.Marshal]::GetLastWin32Error()))
+		    }
+		}
+		finally {
+			[BAMCIS.PowerShell.SecurityToken]::CloseHandle($TokenHandle) | Out-Null
+		}
+
+		Write-Log -Message "Successfully duplicated token to current process thread." -Level VERBOSE
+	}
+
+	End {		
+	}
+}
+
+Function Reset-ProcessToken {
+	<#
+		.SYNOPSIS
+			Reverts to the process thread token to the current user.
+
+		.DESCRIPTION
+			The Reset-ProcessToken cmdlet needs to be called to end any process impersonation called through DdeImpersonateClient, ImpersonateDdeClientWindow, ImpersonateLoggedOnUser, ImpersonateNamedPipeClient, ImpersonateSelf, ImpersonateAnonymousToken or SetThreadToken.
+			
+			Underlying the cmdlet is a P/Invoke call to RevertToSelf() in AdvApi32.dll.
+
+            The CmdLet must be run with elevated permissions.
+
+		.EXAMPLE
+			Reset-ProcessToken
+
+			Reverts the process thread to use the token of the current user.
+
+		.INPUTS
+			None
+
+		.OUTPUTS
+            None
+
+		.NOTES
+			AUTHOR: Michael Haken
+			LAST UPDATE: 3/25/2016
+	#>
+
+	[CmdletBinding()]
+	[OutputType()]
+	Param()
+
+	Begin {
+		if (-not (Test-IsLocalAdmin)) {
+			throw "Run the cmdlet with elevated credentials."
+		}
+	}
+
+	Process {
+		if (!([System.Management.Automation.PSTypeName]"BAMCIS.PowerShell.SecurityToken").Type) {
+			Add-Type -TypeDefinition $script:TokenSignature
+		}
+
+		#RevertToSelf is equivalent to SetThreadToken([System.IntPtr]::Zero, [System.IntPtr]::Zero)
+		$ReturnValue = [BAMCIS.PowerShell.SecurityToken]::RevertToSelf()
+
+		if($ReturnValue -eq $null -or $ReturnValue -eq $false) {
+			throw (New-Object -TypeName System.Exception([System.ComponentModel.Win32Exception][System.Runtime.InteropServices.Marshal]::GetLastWin32Error()))
+		}
+
+		Write-Log -Message "Successfully executed RevertToSelf() and reset the process thread token." -Level VERBOSE
+	}
+
+	End {		
+	}
+}
+
+Function Set-TokenPrivilege {
+	<#
+		.SYNOPSIS
+			Enables or disables security privileges for the current user's process.
+
+		.DESCRIPTION
+			This cmdlet enables or disables available security privileges for the current user.
+
+		.PARAMETER Privileges
+			The privileges to enable or disable.
+
+		.PARAMETER Enable
+			Enables the privileges.
+
+		.PARAMETER Disable
+			Disables the privileges.
+
+		.INPUTS
+			None
+		
+		.OUTPUTS
+			None
+
+		.EXAMPLE 
+			Set-TokenPrivilege -Privileges SeSecurityPrivilege -Enable
+
+			Enables the SeSecurityPrivilege for the user running the cmdlet.
+
+		.NOTES
+			AUTHOR: Michael Haken
+			LAST UPDATE: 10/23/2017
+	#>
+	[CmdletBinding()]
+	[OutputType()]
+	Param(
+		## The privilege to adjust. This set is taken from
+		## http://msdn.microsoft.com/en-us/library/bb530716(VS.85).aspx
+		[Parameter(Mandatory = $true, ValueFromPipeline = $true, Position = 0)]
+		[ValidateSet(
+			"SeAssignPrimaryTokenPrivilege", "SeAuditPrivilege", "SeBackupPrivilege",
+			"SeChangeNotifyPrivilege", "SeCreateGlobalPrivilege", "SeCreatePagefilePrivilege",
+			"SeCreatePermanentPrivilege", "SeCreateSymbolicLinkPrivilege", "SeCreateTokenPrivilege",
+			"SeDebugPrivilege", "SeEnableDelegationPrivilege", "SeImpersonatePrivilege", "SeIncreaseBasePriorityPrivilege",
+			"SeIncreaseQuotaPrivilege", "SeIncreaseWorkingSetPrivilege", "SeLoadDriverPrivilege",
+			"SeLockMemoryPrivilege", "SeMachineAccountPrivilege", "SeManageVolumePrivilege",
+			"SeProfileSingleProcessPrivilege", "SeRelabelPrivilege", "SeRemoteShutdownPrivilege",
+			"SeRestorePrivilege", "SeSecurityPrivilege", "SeShutdownPrivilege", "SeSyncAgentPrivilege",
+			"SeSystemEnvironmentPrivilege", "SeSystemProfilePrivilege", "SeSystemtimePrivilege",
+			"SeTakeOwnershipPrivilege", "SeTcbPrivilege", "SeTimeZonePrivilege", "SeTrustedCredManAccessPrivilege",
+			"SeUndockPrivilege", "SeUnsolicitedInputPrivilege"
+		)]
+		[System.String[]]$Privileges,
+
+		[Parameter(ParameterSetName = "Enable", Mandatory = $true)]
+		[Switch]$Enable,
+
+		[Parameter(ParameterSetName = "Disable", Mandatory = $true)]
+		[Switch]$Disable
+	)
+
+	Begin {
+		if (-not (Test-IsLocalAdmin)) {
+			throw "Run the cmdlet with elevated credentials."
+		}
+
+		if (-not ([System.Management.Automation.PSTypeName]"BAMCIS.PowerShell.SecurityToken").Type) {
+            Add-Type -TypeDefinition $script:TokenSignature
+        }
+	}
+
+	Process {
+		foreach ($Privilege in $Privileges)
+		{
+			[BAMCIS.PowerShell.SecurityToken+TokPriv1Luid]$TokenPrivilege1Luid = New-Object BAMCIS.PowerShell.SecurityToken+TokPriv1Luid
+			$TokenPrivilege1Luid.Count = 1
+			$TokenPrivilege1Luid.Luid = 0
+
+			if ($Enable)
+			{
+				$TokenPrivilege1Luid.Attr = [BAMCIS.PowerShell.SecurityToken]::SE_PRIVILEGE_ENABLED
+			}
+			else 
+			{
+				$TokenPrivilege1Luid.Attr = [BAMCIS.PowerShell.SecurityToken]::SE_PRIVILEGE_DISABLED
+			}
+
+			[System.IntPtr]$TokenHandle = [System.IntPtr]::Zero
+            $Temp = $null
+
+			$ReturnValue = [BAMCIS.PowerShell.SecurityToken]::LookupPrivilegeValue($null, $Privilege, [ref]$Temp)
+            
+            if ($ReturnValue -eq $true)
+            {
+                $TokenPrivilege1Luid.Luid = $Temp
+
+			    $ReturnValue = [BAMCIS.PowerShell.SecurityToken]::OpenProcessToken([BAMCIS.PowerShell.SecurityToken]::GetCurrentProcess(), [BAMCIS.PowerShell.SecurityToken]::TOKEN_ADJUST_PRIVILEGES -BOR [BAMCIS.PowerShell.SecurityToken]::TOKEN_QUERY, [ref]$TokenHandle)
+  
+			    $DisableAllPrivileges = $false
+			    $ReturnValue = [BAMCIS.PowerShell.SecurityToken]::AdjustTokenPrivileges($TokenHandle, $DisableAllPrivileges, [ref]$TokenPrivilege1Luid, [System.Runtime.InteropServices.Marshal]::SizeOf($TokenPrivilege1Luid), [IntPtr]::Zero, [IntPtr]::Zero)
+
+			    if($ReturnValue -eq $null -or $ReturnValue -eq $false) 
+			    {
+				    throw (New-Object -TypeName System.Exception([System.ComponentModel.Win32Exception][System.Runtime.InteropServices.Marrshal]::GetLastWin32Error()))
+			    }
+            }
+            else
+            {
+                throw (New-Object -TypeName System.Exception([System.ComponentModel.Win32Exception][System.Runtime.InteropServices.Marrshal]::GetLastWin32Error()))
+            }
+		}
+	}
+
+	End {
+
+	}
+}
+
 Function Start-WithImpersonation {
 	<#
 		.SYNOPSIS
@@ -610,14 +666,20 @@ Function Start-WithImpersonation {
 	#>
 
 	[CmdletBinding()]
+	[OutputType([System.Management.Automation.PSObject])]
 	Param(
-		[Parameter(Position=1,Mandatory=$true)]
-		[PSCredential]$Credential,
-		[Parameter(Position=0,Mandatory=$true)]
-		[Scriptblock]$Scriptblock,
-		[Parameter(Position=2)]
+		[Parameter(Mandatory = $true)]
+		[ValidateNotNull()]
+		[System.Management.Automation.Credential()]
+		[System.Management.Automation.PSCredential]$Credential = [System.Management.Automation.PSCredential]::Empty,
+
+		[Parameter(Position = 0, Mandatory = $true)]
+		[ValidateNotNull()]
+		[System.Management.Automation.ScriptBlock]$ScriptBlock,
+
+		[Parameter(Position = 1)]
 		[ValidateSet("INTERACTIVE","NETWORK","NETWORK_CLEARTEXT","NEW_CREDENTIALS","SERVICE","BATCH","UNLOCK")]
-		[string]$LogonType = "INTERACTIVE"
+		[System.String]$LogonType = "INTERACTIVE"
 	)
 
 	Begin {}
@@ -625,11 +687,11 @@ Function Start-WithImpersonation {
 	Process
 	{
 	
-		$Job = Start-Job -ArgumentList @($Credential, $Scriptblock) -ScriptBlock {
+		$Job = Start-Job -ArgumentList @($Credential, $ScriptBlock) -ScriptBlock {
 			Add-Type -AssemblyName System.ComponentModel
 
-			[PSCredential]$Credential = $args[0]
-			[Scriptblock]$Scriptblock = [Scriptblock]::Create($args[1])
+			[System.Management.Automation.PSCredential]$Credential = $args[0]
+			[System.Management.Automation.ScriptBlock]$ScriptBlock = [System.Management.Automation.ScriptBlock]::Create($args[1])
 
 			$Signatures = @"
 		[DllImport( "advapi32.dll" )]
@@ -726,27 +788,27 @@ Function Start-WithImpersonation {
 				{
 					$ReturnValue = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error()
 					$Message = (New-Object -TypeName System.ComponentModel.Win32Exception($ReturnValue)).Message
-					Write-Warning -Message "LogonUser was unsuccessful. Error code: $ReturnValue - $Message"
+					Write-Log -Message "LogonUser was unsuccessful. Error code: $ReturnValue - $Message" -Level WARNING
 					return
 				}
 
 				$NewIdentity = New-Object System.Security.Principal.WindowsIdentity($TokenHandle)
 
 				$IdentityName = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
-				Write-Host "Current Identity: $IdentityName"
+				Write-Log -Mesage "Current Identity: $IdentityName" -Level VERBOSE
     
 				$Context = $NewIdentity.Impersonate()
 
 				$IdentityName = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
-				Write-Host "Impersonating: $IdentityName"
+				Write-Log -Message "Impersonating: $IdentityName" -Level VERBOSE
 
-				Write-Host "Executing custom script"
-				$Result = & $Scriptblock
-				return $Result
+				Write-Log -Message "Executing custom script" -Level VERBOSE
+				$Result = & $ScriptBlock
+				Write-Output -InputObject $Result
 			}
 			catch [System.Exception]
 			{
-				Write-Warning -Message $_.Exception.ToString()
+				Write-Log -ErrorRecord $_ -Level WARNING
 			}
 			finally
 			{
@@ -766,79 +828,65 @@ Function Start-WithImpersonation {
 		Write-Output -InputObject (Receive-Job -Job $Job)
 	}
 
-	End
-	{		
+	End {		
 	}
 }
 
-Function Enable-WinRM {
+#endregion
+
+
+#region File Operations
+
+Function Set-FileSecurity {
 	<#
 		.SYNOPSIS
-			Enables WinRM on a host.
+			Sets permissions on a file or directory.
 
 		.DESCRIPTION
-			The function enables PowerShell remoting, sets WinRM to automatically start, adds the provided to trusted hosts (which defaults to all hosts), and creates the firewall rule to allow inbound WinRM.
+			Will add or replace the supplied rules to the specified file or directory. The default behavior is that the rules are just added to the current ACL of the object.
 
-		.PARAMETER TrustedHosts
-			The hosts that are trusted for remote mamangement. This can be an IP range, a subnet, or a wildcard. This defaults to all hosts: "*".
+		.PARAMETER Path
+			The path to the file to set permissions on.
 
-		.INPUTS
-			System.String
+		.PARAMETER Rules
+			An array of File Access Rules to apply to the path.
 
-				The value can be piped to Enable-WinRM.
+		.PARAMETER ReplaceAllRules
+			Indictates if all permissions on the path should be replaced with these.
 
-		.OUTPUTS
-			None
+		.PARAMETER ReplaceNonInherited
+			Replaces all existing rules that are not inherited from a parent directory.
+
+		.PARAMETER ReplaceRulesForUser
+			Indicates if the supplied rules should replace existing rules for matching users. For example, if the Rules parameter has a Full Control rule for System and a Read rules for 
+			Administrators, existing rules for System and Administrators would be removed and replaced with the new rules.
+
+		.PARAMETER AddIfNotPresent
+			Add the rules if they do not already exist on the path. The rules are matched based on all properties including FileSystemRights, PropagationFlags, InheritanceFlags, etc.
+
+		.PARAMETER ForceChildInheritance
+			Indicates if all permissions of child items should have their permissions replaced with the parent if the target is a directory.
+
+		.PARAMETER EnableChildInheritance
+			Indicates that child items should have inheritance enabled, but will still preserve existing permissions. This parameter is ignored if ForceChildInheritance is specified.
+
+		.PARAMETER ResetInheritance
+			Indicates that all explicitly set permissions will be removed from the path and inheritance from its parent will be forced.
+
+        .EXAMPLE
+			PS C:\>Set-Permissions -Path "c:\test.txt" -Rules $Rules
+
+			Creates the rule set on the test.txt file.
 
 		.EXAMPLE
-			Enable-WinRM -TrustedHosts "192.168.100.0-192.168.100.255"
+			PS C:\>Set-Permissions -Path "c:\test" -ResetInheritance
 
-		.NOTES
-			This command should be run with administrative credentials
+			Resets inherited permissions on the c:\test directory.
 
-			AUTHOR: Michael Haken
-			LAST UPDATED: 2/27/2016
-	#>
-	[CmdletBinding()]
-	Param(
-		[Parameter(Position=0,ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true)]
-		[string]$TrustedHosts = "*"
-	)
+		.EXAMPLE
+			PS C:\>Set-Permissions -Path "c:\test" -Rules $Rules -ReplaceAllRules -ForceChildInheritance
 
-	Begin {
-		if (!(Test-IsLocalAdmin)) {
-			throw "This cmdlet must be run with admin credentials."
-		}
-	}
-
-	Process
-	{
-		Set-NetConnectionProfile -NetworkCategory Private
-		Enable-PSRemoting -Force 
-		Set-Service -Name WinRM -StartupType Automatic
-		Start-Service -Name WinRM
-		Set-Item WSMan:\localhost\Client\TrustedHosts -Value $TrustedHosts -Force
-		Restart-Service -Name WinRM
-		New-NetFirewallRule -Name "Allow_WinRM" -DisplayName "Windows Remote Management (WinRM)" -Description "Allows WinRM ports 5985-5986 inbound." -Protocol TCP -LocalPort 5985,5986 -Enabled True -Action Allow -Profile Any
-		Write-Host "WinRM Enabled" -ForegroundColor Green
-	}
-	
-	End {}
-}
-
-Function New-EmptyTestFile {
-	<#
-		.SYNOPSIS
-			Creates an empty file of the specified size.
-
-		.DESCRIPTION
-			Creates a file of the provided size in the provided location to test against.
-
-		.PARAMETER FilePath
-			The location the file should be created. This defaults to the user's desktop with a filename of Test.txt.
-
-		.PARAMETER Size
-			The size of the file to be created. Can be specified in bytes or with units, such as 64GB or 32MB.
+			Replaces all existing rules on the c:\test directory with the newly supplied rules and forces child objects to inherit those permissions. This removes existing explicit permissions on child objects.
 
 		.INPUTS
 			None
@@ -846,176 +894,659 @@ Function New-EmptyTestFile {
 		.OUTPUTS
 			None
 
-		.EXAMPLE
-			New-EmptyTestFile -FilePath "c:\test.cab" -Size 15MB
-
-			Creates an empty 15MB cab file at c:\test.cab.
-
 		.NOTES
 			AUTHOR: Michael Haken
-			LAST UPDATED: 11/14/2016
-
-		.FUNCTIONALITY
-			This cmdlet is used to create empty test files to perform tests on.
+			LAST UPDATE: 2/27/2017
 	#>
-	[CmdletBinding()]
-	Param(
-		[Parameter(Position=1)]
-		[string]$FilePath = "$env:USERPROFILE\Desktop\Test.txt",
-		[Parameter(Position=0,Mandatory=$true)]
-		[UInt64]$Size
-	)
 
-	Begin {}
+	[CmdletBinding(DefaultParameterSetName = "Add")]
+	[Alias("Set-FilePermissions")]
+	[OutputType()]
+    Param 
+    (
+        [Parameter(Position=0,Mandatory=$true)]
+		[ValidateNotNullOrEmpty()]
+        [System.String]$Path,
 
-	Process
-	{
-		$Writer = [System.IO.File]::Create($FilePath)
+		[Parameter(ParameterSetName = "ReplaceAll")]
+		[Parameter(ParameterSetName = "Replace")]
+		[Parameter(ParameterSetName = "Add")]
+		[Parameter(ParameterSetName = "AddIfNotPresent")]
+		[Parameter(ParameterSetName = "ReplaceNonInherited")]
+		[Parameter(ParameterSetName = "AddIfNotPresentAndReplace")]
+		[Alias("Rules")]
+		[ValidateNotNull()]
+        [System.Security.AccessControl.FileSystemAccessRule[]]$AccessRules,
 
-		$Bytes = New-Object Byte[] ($Size)
-		$Writer.Write($Bytes, 0, $Bytes.Length)
+		[Parameter(ParameterSetName = "ReplaceAll")]
+		[Parameter(ParameterSetName = "Replace")]
+		[Parameter(ParameterSetName = "Add")]
+		[Parameter(ParameterSetName = "AddIfNotPresent")]
+		[Parameter(ParameterSetName = "ReplaceNonInherited")]
+		[Parameter(ParameterSetName = "AddIfNotPresentAndReplace")]
+		[ValidateNotNull()]
+		[System.Security.AccessControl.FileSystemAuditRule[]]$AuditRules,
 
-		$Writer.Close()
+		[Parameter(ParameterSetName = "ReplaceAll")]
+		[Switch]$ReplaceAllRules,
 
-		Write-Host "$Size file created at $FilePath"
-	}
+		[Parameter(ParameterSetName = "ReplaceNonInherited")]
+		[Switch]$ReplaceNonInheritedRules,
 
-	End {}
-}
+		[Parameter(ParameterSetName = "Replace")]
+		[Switch]$ReplaceRulesForUser,
 
-Function Start-PortScan {
-	<#
-		.SYNOPSIS
-			Conducts a port scan on the selected computer.
+		[Parameter(ParameterSetName = "AddIfNotPresent")]
+		[Switch]$AddIfNotPresent,
 
-		.DESCRIPTION
-			Tries to connect to common ports on a targetted system and reports back the port status of each. Each connection is scheduled as a job; the function waits for all jobs to exit the running status before returning scan information.
+		[Parameter(ParameterSetName = "AddIfNotPresentAndReplace")]
+		[Switch]$AddIfNotPresentAndReplace,
 
-		.PARAMETER ComputerName
-			The name of the computer to scan. The parameter defaults to "localhost"
+		[Parameter()]
+		[Switch]$ForceChildInheritance,
 
-		.INPUTS
-			System.String
+		[Parameter()]
+		[Switch]$EnableChildInheritance,
 
-				The input can be piped to Start-PortScan
+		[Parameter(ParameterSetName = "Reset")]
+		[Switch]$ResetInheritance
+    )
 
-		.OUTPUTS
-			System.Management.Automation.PSCustomObject[]
+    Begin 
+	{       	
+		Function Convert-FileSystemRights {
+			Param(
+				[Parameter(Mandatory = $true, Position = 0)]
+				[System.Security.AccessControl.FileSystemRights]$Rights
+			)
 
-				Each custom object has a property of Service, Port, and Status. Status is either Open or Closed.
+			Begin {
+			}
 
-		.EXAMPLE
-			Start-PortScan -ComputerName remotecomputer.net
+			Process {
+				[System.Security.AccessControl.FileSystemRights]$ExistingFileSystemRights = $Rights
+				[System.Int32]$Temp = $Rights
 
-			Returns an array of open and closed ports on remotecomputer.net
-
-		.NOTES
-			AUTHOR: Michael Haken
-			LAST UPDATE: 2/27/2016
-
-		.FUNCTIONALITY
-			The intended use of this cmdlet is to conduct a security scan of ports on a computer.
-
-	#>
-	[CmdletBinding()]
-	Param(
-		[Parameter(Position=0,ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true)]
-		[string]$ComputerName = "localhost"
-	)
-	
-	Begin
-	{
-		$Ports = $script:Ports | Sort-Object -Property Port
-	}
-
-	Process
-	{
-		$Jobs = @()
-
-		$i = 1
-
-		foreach ($Item in $Ports)    
-		{
-			Write-Progress -Activity "Running Port Scan" -Status "Scanning Port $($Item.Port) $($Item.Service)" -PercentComplete (($i++ / $Ports.Count) * 100)
-		
-			$Jobs += Start-Job -ArgumentList @($ComputerName,$Item) -ScriptBlock {
-				$ComputerName = $args[0]
-				$Service = $args[1].Service
-				$Port = $args[1].Port
-
-				$Socket = New-Object Net.Sockets.TcpClient
-				$ErrorActionPreference = 'SilentlyContinue'
-				$Socket.Connect($ComputerName, $Port)
-				$ErrorActionPreference = 'Continue' 
-		
-				if ($Socket.Connected) 
+				switch ($Temp)
 				{
-					$Socket.Close()
-					return [PSCustomObject]@{"Service"="$Service";"Port"=$Port;"Status"="Open"}
+					#268435456
+					0x10000000 {
+						$ExistingFileSystemRights = [System.Security.AccessControl.FileSystemRights]::FullControl
+						break
+					}
+					#-1610612736
+					0xA0000000 {
+						$ExistingFileSystemRights = @([System.Security.AccessControl.FileSystemRights]::ReadAndExecute, [System.Security.AccessControl.FileSystemRights]::Synchronize)
+						break
+					}
+					#-536805376
+					0xE0010000 {
+						$ExistingFileSystemRights = @([System.Security.AccessControl.FileSystemRights]::Modify, [System.Security.AccessControl.FileSystemRights]::Synchronize)
+						break
+					}
+					default {
+						$ExistingFileSystemRights = $Rights
+						break
+					}
 				}
-				else 
-				{
-					return [PSCustomObject]@{"Service"="$Service";"Port"=$Port;"Status"="Closed"}
-				}
+
+				Write-Output -InputObject $ExistingFileSystemRights
+			}
+
+			End {
 			}
 		}
 
-		Write-Progress -Completed -Activity "Running Port Scan"
+		Function Get-AuthorizationRuleComparison {
+			Param(
+				[Parameter(Mandatory = $true, Position = 0)]
+				[System.Security.AccessControl.AuthorizationRule]$Rule1,
 
-		Write-Host "Waiting for jobs to complete..."
+				[Parameter(Mandatory = $true, Position = 1)]
+				[System.Security.AccessControl.AuthorizationRule]$Rule2
+			)
 
-		$RunningJobs = @()
+			Begin {
+			}
 
-		$RunningJobs = Get-Job | Where-Object {$_.Id -in ($Jobs | Select-Object -ExpandProperty Id)}
+			Process {
+				$Equal = $false
 
-		while (($RunningJobs | Where {$_.State -eq "Running"}).Length -gt 0) {
-			$Completed = ($RunningJobs | Where {$_.State -eq "Completed"}).Length
+				try
+				{
+					[System.Security.AccessControl.FileSystemRights]$ExistingFileSystemRights1  = Convert-FileSystemRights -Rights $Rule1.FileSystemRights
+					[System.Security.AccessControl.FileSystemRights]$ExistingFileSystemRights2  = Convert-FileSystemRights -Rights $Rule2.FileSystemRights
 
-			Write-Progress -Activity "Completing Jobs" -Status ("Waiting for connections to complete: " + (($Completed / $RunningJobs.Length) * 100) + "% Complete") -PercentComplete (($Completed / $RunningJobs.Length) * 100)
-			Start-Sleep -Milliseconds 500
+					if ($ExistingFileSystemRights1 -eq $ExistingFileSystemRights2 -and `
+						$Rule1.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]) -eq $Rule2.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]) -and `
+						$Rule1.AccessControlType -eq $Rule2.AccessControlType -and `
+						$Rule1.InheritanceFlags -eq $Rule2.InheritanceFlags -and `
+						$Rule1.PropagationFlags -eq $Rule2.PropagationFlags)
+					{
+						$Equal = $true
+					}
+				}
+				catch [Exception]
+				{
+					Write-Log -Message "Error evaluating access rule : `nExisting $($Rule1 | FL | Out-String) `nNew $($Rule2 | FL | Out-String)" -ErrorRecord $_ -Level WARNING
+				}
+
+				Write-Output -InputObject $Equal
+			}
+
+			End {
+			}
 		}
 
-		Wait-Job -Job $Jobs | Out-Null
-		$Data = @()
-		Receive-Job -Job $Jobs | ForEach-Object {
-			$Data += $_
-		}
-
-		Remove-Job -Job $Jobs
-
-		Write-Output -InputObject ($Data | Select-Object -Property * -ExcludeProperty RunspaceId)
+		Set-TokenPrivilege -Privileges SeSecurityPrivilege -Enable
 	}
 
-	End
-	{	
+    Process
+    {
+		if ($PSCmdlet.ParameterSetName -eq "Add" -and $AccessRules.Length -eq 0 -and $AuditRules.Length -eq 0)
+		{
+			throw "Either a set of access rules or audit rules must be provided to add to the path."
+		}
+
+		Write-Log -Message "Setting access and audit rules on $Path" -Level VERBOSE
+		Push-Location -Path $env:SystemDrive
+
+		[System.Boolean]$IsProtectedFromInheritance = $false
+
+		#This is ignored if IsProtectedFromInheritance is false
+		[System.Boolean]$PreserveInheritedRules = $false
+
+		try
+        {
+			#$Acl = Get-Acl -Path $Path
+			$Item = Get-Item -Path $Path
+			[System.Security.AccessControl.FileSystemSecurity]$Acl = $Item.GetAccessControl(@([System.Security.AccessControl.AccessControlSections]::Access, [System.Security.AccessControl.AccessControlSections]::Audit))
+
+            if ($Acl -ne $null)
+            {
+				switch ($PSCmdlet.ParameterSetName) {
+					"ReplaceAll" {
+
+						if ($AccessRules.Length -gt 0)
+						{
+							Write-Log -Message "Disabling access rule inheritance on $Path" -Level VERBOSE
+							$Acl.SetAccessRuleProtection($IsProtectedFromInheritance, $PreserveInheritedRules)
+
+							[System.Security.AccessControl.AuthorizationRuleCollection]$OldAcls = $Acl.Access
+
+							foreach ($Rule in $OldAcls)
+							{
+								try 
+								{
+									$Acl.RemoveAccessRule($Rule) | Out-Null
+								}
+								catch [Exception] 
+								{
+									Write-Log -Message "Error removing access rule : $($Rule | FL | Out-String)" -ErrorRecord $_ -Level WARNING
+								}
+							}
+						}
+
+						if ($AuditRules.Length -gt 0)
+						{
+							Write-Log -Message "Disabling audit rule inheritance on $Path" -Level VERBOSE
+							$Acl.SetAuditRuleProtection($IsProtectedFromInheritance, $PreserveInheritedRules)
+
+							Write-Log -Message "Getting audit rules" -Level VERBOSE
+							[System.Security.AccessControl.AuthorizationRuleCollection]$OldAuditRules = $Acl.GetAuditRules($script:EXPLICIT_TRUE,  $script:INHERITED_FALSE, [System.Security.Principal.NTAccount])
+
+							foreach ($Rule in $OldAuditRules)
+							{
+								try
+								{
+									$Acl.RemoveAuditRule($Rule) | Out-Null
+								}
+								catch [Exception]
+								{
+									Write-Log -Message "Error removing audit rule : $($Rule | FL | Out-String)" -ErrorRecord $_ -Level WARNING
+								}
+							}
+						}
+
+						break
+					}
+					"ReplaceNonInherited" {
+
+						if ($AccessRules.Length -gt 0)
+						{
+							[System.Security.AccessControl.AuthorizationRuleCollection]$OldAcls = $Acl.Access
+
+							foreach ($Rule in ($OldAcls | Where-Object {$_.IsInherited -eq $false}))
+							{
+								try 
+								{
+									$Acl.RemoveAccessRule($Rule) | Out-Null
+								}
+								catch [Exception] 
+								{
+									Write-Log -Message "Error removing access rule : $($Rule | FL | Out-String)" -ErrorRecord $_ -Level WARNING
+								}
+							}
+						}
+
+						if ($AuditRules.Length -gt 0)
+						{
+							Write-Log -Message "Disabling audit rule inheritance on $Path" -Level VERBOSE
+
+							Write-Log -Message "Getting non inherited audit rules" -Level VERBOSE
+							[System.Security.AccessControl.AuthorizationRuleCollection]$OldAuditRules = $Acl.GetAuditRules($script:EXPLICIT_TRUE,  $script:INHERITED_FALSE, [System.Security.Principal.NTAccount])
+
+							foreach ($Rule in $OldAuditRules)
+							{
+								try
+								{
+									$Acl.RemoveAuditRule($Rule) | Out-Null
+								}
+								catch [Exception]
+								{
+									Write-Log -Message "Error removing audit rule : $($Rule | FL | Out-String)" -ErrorRecord $_ -Level WARNING
+								}
+							}
+						}
+
+						break
+					}
+					"Replace" {
+						
+						[System.Security.Principal.SecurityIdentifier[]]$Identities = $AccessRules | Select-Object -Property @{Name = "ID"; Expression = { $_.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]) } } | Select-Object -ExpandProperty ID
+						foreach ($Sid in $Identities)
+						{
+							$Acl.PurgeAccessRules($Sid)
+							$Acl.PurgeAuditRules($Sid)
+						}
+						
+						break
+					}
+					"Add" {
+						#Do Nothing
+						break
+					}
+					"Reset" {
+						[System.Security.AccessControl.AuthorizationRuleCollection]$OldAcls = $Acl.Access
+
+						foreach ($Rule in $OldAcls)
+						{
+							$Acl.RemoveAccessRule($Rule) | Out-Null
+						}
+				
+						$Acl.SetAccessRuleProtection($IsProtectedFromInheritance, $PreserveInheritedRules)			
+
+						[System.Security.AccessControl.AuthorizationRuleCollection]$OldAuditRules = $Acl.GetAuditRules($script:EXPLICIT_TRUE,  $script:INHERITED_FALSE, [System.Security.Principal.NTAccount])
+
+						foreach ($Rule in $OldAuditRules)
+						{
+							$Acl.RemoveAuditRule($Rule) | Out-Null
+						}
+
+						$Acl.SetAuditRuleProtection($IsProtectedFromInheritance, $PreserveInheritedRules)
+						
+						#Call set ACL since no additional rules are provided
+						$Item.SetAccessControl($Acl)
+					}
+					"AddIfNotPresent" {
+						if ($AccessRules.Length -gt 0)
+						{
+							foreach ($Rule in $AccessRules)
+							{
+								[System.Boolean]$Found = $false
+
+								foreach ($ExistingRule in $Acl.Access)
+								{
+									$Found = Get-AuthorizationRuleComparison -Rule1 $ExistingRule -Rule2 $Rule
+									if ($Found -eq $true)
+									{
+										Write-Log -Message "Found matching access rule, no need to add this one" -Level VERBOSE
+										break
+									}
+								}
+
+								if ($Found -eq $false)
+								{
+									try
+									{
+										$Acl.AddAccessRule($Rule)
+									}
+									catch [Exception]
+									{
+										Write-Log -Message "Error adding access rule : $($Rule | FL | Out-String)" -ErrorRecord $_ -Level WARNING
+									}
+								}
+							}
+
+							#Call set access control since we've already added the rules
+							$Item.SetAccessControl($Acl)
+						}	
+
+						if ($AuditRules.Length -gt 0)
+						{
+							foreach ($Rule in $AuditRules)
+							{
+								[System.Boolean]$Found = $false
+
+								foreach ($ExistingRule in $Acl.GetAuditRules($script:EXPLICIT_TRUE, $script:INHERITED_FALSE, [System.Security.Principal.NTAccount]))
+								{
+									$Found = Get-AuthorizationRuleComparison -Rule1 $ExistingRule -Rule2 $Rule
+
+									if ($Found -eq $true)
+									{
+										break
+									}
+								}
+
+								if ($Found -eq $false)
+								{
+									try
+									{
+										$Acl.AddAuditRule($Rule)
+									}
+									catch [Exception]
+									{
+										Write-Log -Message "Error adding audit rule : $($Rule | FL | Out-String)" -ErrorRecord $_ -Level WARNING
+									}
+								}
+							}
+							#Call set access control since we've already added the rules
+							$Item.SetAccessControl($Acl)
+						}
+						break
+					}
+					"AddIfNotPresentAndReplace" {
+						if ($AccessRules.Length -gt 0)
+						{
+							foreach ($ExistingRule in ($Acl.Access | Where-Object {$_.IsInherited -eq $false }))
+							{
+								[System.Boolean]$Found = $false
+
+								foreach ($Rule in $AccessRules)
+								{
+									$Found = Get-AuthorizationRuleComparison -Rule1 $ExistingRule -Rule2 $Rule
+
+									#The existing rule did match a new rule
+									if ($Found -eq $true)
+									{
+										break
+									}
+								}
+
+								#The existing rule did not match a new rule, remove it
+								if ($Found -eq $false)
+								{
+									try
+									{
+										Write-Log -Message "Removing rule $($Rule | FL | Out-String)" -Level VERBOSE
+										$Acl.RemoveAccessRule($ExistingRule)
+									}
+									catch [Exception]
+									{
+										Write-Log -Message "Error removing access rule : $($Rule | FL | Out-String)" -ErrorRecord $_ -Level WARNING
+									}
+								}
+							}
+
+
+							foreach ($Rule in $AccessRules)
+							{
+								[System.Boolean]$Found = $false
+
+								foreach ($ExistingRule in $Acl.Access)
+								{
+									$Found = Get-AuthorizationRuleComparison -Rule1 $ExistingRule -Rule2 $Rule
+
+									if ($Found -eq $true)
+									{
+										break
+									}
+								}
+
+								#Did not find a matching, existing rule
+								if ($Found -eq $false)
+								{
+									try
+									{
+										Write-Log -Message "Adding rule $($Rule | FL | Out-String)" -Level VERBOSE
+										$Acl.AddAccessRule($Rule)
+									}
+									catch [Exception]
+									{
+										Write-Log -Message "Error adding access rule : $($Rule | FL | Out-String)" -ErrorRecord $_ -Level WARNING 
+									}
+								}
+							}
+
+							#Call set access control since we've already added the rules
+							$Item.SetAccessControl($Acl)
+						}	
+
+						if ($AuditRules.Length -gt 0)
+						{
+							foreach ($ExistingRule in $Acl.GetAuditRules($script:EXPLICIT_TRUE, $script:INHERITED_FALSE, [System.Security.Principal.NTAccount]))
+							{
+								[System.Boolean]$Found = $false
+
+								foreach ($Rule in $AccessRules)
+								{
+									$Found = Get-AuthorizationRuleComparison -Rule1 $ExistingRule -Rule2 $Rule
+
+									#The existing rule did match a new rule
+									if ($Found -eq $true)
+									{
+										break
+									}
+								}
+
+								#The existing rule did not match a new rule, remove it
+								if ($Found -eq $false)
+								{
+									try
+									{
+										Write-Log -Message "Removing rule $($Rule | FL | Out-String)" -Level VERBOSE
+										$Acl.RemoveAuditRule($ExistingRule)
+									}
+									catch [Exception]
+									{
+										Write-Log -Message "Error removing audit rule : $($Rule | FL | Out-String)" -ErrorRecord $_ -Level WARNING 
+									}
+								}
+							}
+
+							foreach ($Rule in $AuditRules)
+							{
+								[System.Boolean]$Found = $false
+
+								foreach ($ExistingRule in ($Acl.GetAuditRules($script:EXPLICIT_TRUE, $true, [System.Security.Principal.NTAccount]) | Where-Object {$_.IsInherited -eq $false }))
+								{
+									$Found = Get-AuthorizationRuleComparison -Rule1 $ExistingRule -Rule2 $Rule
+
+									if ($Found -eq $true)
+									{
+										break
+									}
+								}
+
+								#Did not find a matching, existing rule
+								if ($Found -eq $false)
+								{
+									try
+									{
+										Write-Log -Message "Adding audit rule $($Rule | FL | Out-String)" -Level VERBOSE
+										$Acl.AddAuditRule($Rule)
+									}
+									catch [Exception]
+									{
+										Write-Log -Message "Error adding audit rule : $($Rule | FL | Out-String)" -ErrorRecord $_ -Level WARNING
+									}
+								}
+							}
+
+							#Call set access control since we've already added the rules
+							$Item.SetAccessControl($Acl)
+						}
+
+						break
+					}
+					default {
+						throw "Could not determine parameter set name"
+					}
+				}
+				
+				if ($PSCmdlet.ParameterSetName -like "Replace*" -or $PSCmdlet.ParameterSetName -eq "Add")
+				{
+					#Add new access rules
+					if($AccessRules.Length -gt 0)
+					{
+						foreach ($Rule in $AccessRules) 
+						{
+							$Acl.AddAccessRule($Rule)
+						}
+
+						$Item.SetAccessControl($Acl)
+					}
+
+					#Add new audit rules
+					if ($AuditRules.Length -gt 0)
+					{
+						foreach ($Rule in $AuditRules)
+						{
+							$Acl.AddAuditRule($Rule)
+						}
+
+						$Item.SetAccessControl($Acl)
+					}	
+				}
+
+				#If child permissions should be forced to inherit
+				if (($ForceChildInheritance -or $EnableChildInheritance) -and [System.IO.Directory]::Exists($Path))
+				{
+					Write-Log -Message "Evaluating child items" -Level VERBOSE
+					Get-ChildItem -Path $Path -Recurse -Force | ForEach-Object {
+
+						$ChildItem = Get-Item -Path $_.FullName
+						[System.Security.AccessControl.FileSystemSecurity]$ChildAcl = $ChildItem.GetAccessControl(@([System.Security.AccessControl.AccessControlSections]::Access, [System.Security.AccessControl.AccessControlSections]::Audit))
+
+						if ($AccessRules.Length -gt 0 -or $PSCmdlet.ParameterSetName -eq "Reset")
+						{
+							if ($ForceChildInheritance)
+							{
+								Write-Log -Message "Forcing access rule inheritance on $($ChildItem.FullName)" -Level VERBOSE
+
+								foreach ($ChildRule in ($ChildAcl.Access | Where-Object {$_.IsInherited -eq $false }))
+								{
+									try
+									{
+										$ChildAcl.RemoveAccessRule($ChildRule) | Out-Null
+									}
+									catch [Exception]
+									{
+										Write-Log -Message "Error removing ACL from $($ChildItem.FullName)`: $($ChildRule | FL | Out-String)" -ErrorRecord $_ -Level WARNING
+									}
+								}
+							}
+
+							try
+							{
+								$ChildAcl.SetAccessRuleProtection($IsProtectedFromInheritance, $PreserveInheritedRules)
+								$ChildItem.SetAccessControl($ChildAcl)
+							}
+							catch [Exception]
+							{
+								Write-Log -Message "Could not set ACL on path $ChildPath." -ErrorRecord $_ -Level WARNING
+							}
+						}
+
+						if ($AuditRules.Length -gt 0 -or $PSCmdlet.ParameterSetName -eq "Reset")
+						{
+							Write-Log -Message "Forcing audit rule inheritance on $($ChildItem.FullName)" -Level VERBOSE
+
+							[System.Security.AccessControl.AuthorizationRuleCollection]$OldChildAuditRules = $ChildAcl.GetAuditRules($script:EXPLICIT_TRUE, $script:INHERITED_FALSE, [System.Security.Principal.NTAccount])
+
+							if ($ForceChildInheritance)
+							{
+								foreach ($ChildAudit in $OldChildAuditRules)
+								{
+									try
+									{
+										$ChildAcl.RemoveAuditRule($ChildAudit) | Out-Null
+									}
+									catch [Exception]
+									{
+										Write-Log -Message "Error removing audit from $($ChildItem.FullName)`: $($ChildAudit | FL | Out-String)" -ErrorRecord $_ -Level WARNING
+									}
+								}
+							}
+
+							try
+							{
+								$ChildAcl.SetAccessRuleProtection($IsProtectedFromInheritance, $PreserveInheritedRules)
+								$ChildItem.SetAccessControl($ChildAcl)
+							}
+							catch [Exception]
+							{
+								Write-Log -Message "Could not set ACL on path $ChildPath." -ErrorRecord $_ -Level WARNING
+							}
+						}
+					}
+				}                   
+            }
+            else
+            {
+                Write-Log -Message "Could not retrieve the ACL for $Path." -Level WARNING
+            }
+        }
+        catch [System.Exception]
+        {
+            Write-Log -ErrorRecord $_ -Level WARNING
+        }
+
+		Pop-Location
+    }
+    
+    End {
 	}
 }
 
-Function Remove-JavaInstallations {
-	<#
-		.SYNOPSIS
-			Removes old versions of Java JRE or does a complete removal.
+Function Set-Owner {
+    <#
+        .SYNOPSIS
+            Changes owner of a file or folder to another user or group.
 
-		.DESCRIPTION
-			The function identifies well-known directories, registry keys, and registry key entries. Then based on the type of cleanup and architecture targetted, it removes those files, directories, registry keys, and registry key entries. During a cleanup, the current version of Java is specified so that it is not removed. 
+        .DESCRIPTION
+            Changes owner of a file or folder to another user or group.
 
-		.PARAMETER MajorVersion
-			The current major version of Java, for example 7 or 8.
+        .PARAMETER Path
+            The folder or file that will have the owner changed.
 
-		.PARAMETER MinorVersion
-			The current minor version of Java, this is almost always 0.
+        .PARAMETER Account
+            Optional parameter to change owner of a file or folder to specified account.
 
-		.PARAMETER ReleaseVersion
-			The current release version of Java, this is the update number, for example 15, 45, or 73.
+            Default value is 'Builtin\Administrators'
 
-		.PARAMETER PluginVersion
-			The major version of the Java web plugin, for example 10 or 11.
-	
-		.PARAMETER Architecture
-			The architecture to target, either x86, x64, or All. This defaults to All.
+        .PARAMETER Recurse
+            Recursively set ownership on subfolders and files beneath given folder. If the specified path is a file, this parameter is ignored.
 
-		.PARAMETER FullRemoval
-			Specifies that a full removal of Java should be conducted.
+		.EXAMPLE
+            PS C:\>Set-Owner -Path C:\temp\test.txt
+
+            Changes the owner of test.txt to Builtin\Administrators
+
+        .EXAMPLE
+            PS C:\>Set-Owner -Path C:\temp\test.txt -Account Domain\user
+
+            Changes the owner of test.txt to Domain\user
+
+        .EXAMPLE
+            PS C:\>Set-Owner -Path C:\temp -Recurse 
+
+            Changes the owner of all files and folders under C:\Temp to Builtin\Administrators
+
+        .EXAMPLE
+            PS C:\>Get-ChildItem C:\Temp | Set-Owner -Recurse -Account 'Domain\Administrator'
+
+            Changes the owner of all files and folders under C:\Temp to Domain\Administrator
 
 		.INPUTS
 			None
@@ -1023,451 +1554,834 @@ Function Remove-JavaInstallations {
 		.OUTPUTS
 			None
 
+        .NOTES
+			AUTHOR: Michael Haken
+			LAST UPDATE: 10/23/2017
+    #>
+    [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = "HIGH")]
+	[OutputType()]
+    Param (
+        [Parameter(Position = 0, ValueFromPipeline = $true, Mandatory = $true)]
+        [Alias("FullName")]
+		[ValidateScript({
+			Test-Path -Path $_
+		})]
+		[System.String]$Path,
+
+        [Parameter(Position = 1)]
+		[ValidateNotNullOrEmpty()]
+        [System.String]$Account = 'BUILTIN\Administrators',
+
+        [Parameter()]
+        [Switch]$Recurse,
+
+        [Parameter()]
+        [Switch]$Force
+    )
+
+    Begin {
+        if (-not (Test-IsLocalAdmin)) {
+			throw "Run the cmdlet with elevated credentials."
+		}
+
+        Set-TokenPrivilege -Privileges @("SeRestorePrivilege","SeBackupPrivilege","SeTakeOwnershipPrivilege") -Enable
+    }
+
+    Process {
+        Write-Log -Message "Set Owner Path: $Path" -Level VERBOSE
+		$Account = Get-AccountTranslatedNTName -UserName $Account
+		Write-Log -Message "Account Name: $Account" -Level VERBOSE
+
+        #The ACL objects do not like being used more than once, so re-create them on the Process block
+        $DirOwner = New-Object System.Security.AccessControl.DirectorySecurity
+        $DirOwner.SetOwner((New-Object -TypeName System.Security.Principal.NTAccount($Account)))
+        
+		$FileOwner = New-Object System.Security.AccessControl.FileSecurity
+        $FileOwner.SetOwner((New-Object -TypeName System.Security.Principal.NTAccount($Account)))
+        
+        try {
+			$Item = Get-Item -LiteralPath $Path -Force -ErrorAction Stop
+
+            if (-not $Item.PSIsContainer) 
+            {
+                $ConfirmMessage = "You are about to change the owner of $($Item.FullName) to $Account."
+				$WhatIfDescription = "Set Owner of $($Item.FullName)."
+				$ConfirmCaption = "Set File Owner"
+
+				if ($Force -or $PSCmdlet.ShouldProcess($WhatIfDescription, $ConfirmMessage, $ConfirmCaption))
+				{
+                    $Item.SetAccessControl($FileOwner)
+                    Write-Log -Message "Set ownership to $Account on $($Item.FullName)" -Level VERBOSE
+                }
+            }
+            else
+            {
+                $ConfirmMessage = "You are about to change the owner of $($Item.FullName) to $Account."
+				$WhatIfDescription = "Set Owner of $($Item.FullName)."
+				$ConfirmCaption = "Set Directory Owner"
+
+				if ($Force -or $PSCmdlet.ShouldProcess($WhatIfDescription, $ConfirmMessage, $ConfirmCaption))
+				{
+                    $Item.SetAccessControl($DirOwner)
+                    Write-Log -Message "Set ownership to $Account on $($Item.FullName)" -Level VERBOSE
+                }
+
+                if ($Recurse) 
+				{
+					Get-ChildItem $Item -Force -Recurse | ForEach-Object {
+						Set-Owner -Path $_.FullName -Account $Account -Force
+					}
+				}
+            }
+        }
+        catch [Exception] {
+            Write-Log -Message "Failed to set owner on $($Item.FullName)" -ErrorRecord $_ -Level WARNING
+        }
+    }
+
+    End {
+        Set-TokenPrivilege -Privileges @("SeRestorePrivilege","SeBackupPrivilege","SeTakeOwnershipPrivilege") -Disable
+    }
+}
+
+Function Invoke-ForceDelete {
+		<#
+		.SYNOPSIS
+			The cmdlet forces the deletion of a file or folder and all of its content.
+
+		.DESCRIPTION
+			The cmdlet takes ownership of the file or content in a directory and grants the current user
+			full control permissions to the item. Then it deletes the item and performs this recursively
+			through the directory structure specified.
+		
+		.PARAMETER Path
+			The path to the file or folder to forcefully delete.
+
+		.PARAMETER Force
+			Ignores the confirmation to delete each item.
+
+		.INPUTS
+			System.String
+		
+		.OUTPUTS
+			None
+
+		.EXAMPLE 
+			Invoke-ForceDelete -Path c:\windows.old
+
+			Forcefully deletes the c:\windows.old directory and all of its content.
+
+		.NOTES
+			AUTHOR: Michael Haken
+			LAST UPDATE: 4/24/2017
+	#>
+	[CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = "HIGH")]
+	[OutputType()]
+	Param(
+		[Parameter(Mandatory = $true, Position = 0, ValueFromPipeline = $true)]
+		[ValidateNotNullOrEmpty()]
+		[ValidateScript({ 
+            try {
+               Test-Path -Path $_ -ErrorAction Stop
+            }
+            catch [System.UnauthorizedAccessException] {
+                $true
+            } 
+        })]
+		[System.String]$Path,
+
+		[Parameter()]
+		[Switch]$Force
+	)
+
+	Begin {
+	}
+
+	Process {	
+		# Fix any paths that were fed in dot sourced
+		$Path = Resolve-Path -Path $Path
+		$IsDir = [System.IO.Directory]::Exists($Path)
+
+        Write-Log -Message "Invoke-ForceDelete cmdlet called with path $Path." -Level VERBOSE
+
+		[System.String]$UserName = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+		$UserName = Get-AccountTranslatedNTName -UserName $UserName
+
+        # Take ownership of the provided path
+        Set-Owner -Path $Path -Account $UserName -Recurse -Force
+
+		# Full Control to "This folder, subfolders, and files"
+		[System.Security.Principal.NTAccount]$NTAccount = New-Object -TypeName System.Security.Principal.NTAccount($UserName)
+        [System.Security.Principal.SecurityIdentifier]$Sid = $NTAccount.Translate([System.Security.Principal.SecurityIdentifier])
+		
+		if ($IsDir)
+		{
+			$Ace = New-Object System.Security.AccessControl.FileSystemAccessRule($Sid,
+				[System.Security.AccessControl.FileSystemRights]::FullControl,
+				([System.Security.AccessControl.InheritanceFlags]::ContainerInherit -bor [System.Security.AccessControl.InheritanceFlags]::ObjectInherit),
+				[System.Security.AccessControl.PropagationFlags]::None,
+				[System.Security.AccessControl.AccessControlType]::Allow       
+			)
+		}
+		else
+		{
+			$Ace = New-Object System.Security.AccessControl.FileSystemAccessRule($Sid,
+				[System.Security.AccessControl.FileSystemRights]::FullControl,
+				[System.Security.AccessControl.InheritanceFlags]::None,
+				[System.Security.AccessControl.PropagationFlags]::None,
+				[System.Security.AccessControl.AccessControlType]::Allow       
+			)
+		}
+
+		Set-FileSecurity -Path $Path -AccessRules $Ace -ForceChildInheritance
+
+		# If it's a directory, remove all of the child content
+		if ($IsDir)
+		{
+            Write-Log -Message "The current path $Path is a directory." -Level VERBOSE
+
+			Get-ChildItem -Path $Path -Force | ForEach-Object { 		
+                Invoke-ForceDelete -Path $_.FullName -Force
+			}
+		}
+        
+        # Remove the specified path whether it is a folder or file
+		try
+        {	
+			$ConfirmMessage = "You are about to force delete $Path."
+			$WhatIfDescription = "Deleted $Path."
+			$ConfirmCaption = "Force Delete"
+
+			if ($Force -or $PSCmdlet.ShouldProcess($WhatIfDescription, $ConfirmMessage, $ConfirmCaption))
+			{
+				Write-Log -Message "Deleting $Path" -Level VERBOSE
+				Remove-Item -Path $Path -Confirm:$false -Force -Recurse
+
+				$Counter = 0
+
+				do 
+				{
+					try {
+						$Found = Test-Path -Path $Path -ErrorAction Stop
+					}
+					catch [System.UnauthorizedAccessException] {
+						$Found = $true
+					}
+
+					Start-Sleep -Milliseconds 100
+                
+				} while (($Found -eq $true) -and $Counter++ -lt 50)
+
+				if ($Counter -eq 50)
+				{
+					Write-Log -Message "Timeout waiting for $Path to delete" -Level WARNING
+				}
+			}
+        }
+        catch [Exception]
+        {
+            Write-Log -ErrorRecord $_ -Level WARNING
+        }      
+	}
+
+	End {
+	}
+}
+
+Function Rename-FileOrDirectory {
+	<#
+		.SYNOPSIS
+			The cmdlet renames a file or directory and uses an incrementing counter appended to the desired filename if it already exists.
+
+		.DESCRIPTION
+			The cmdlet attempts to rename a file with the specified new name. If the new name already exists, the postfix "(#)" is added before the file extension, 
+			or the end of the directory name, where "#" is a number starting from 1 and incrementing by 1 until the new name is unique in the directory.
+
+		.PARAMETER Path
+			The file or directory to rename.
+
+		.PARAMETER NewName
+			The new name of the file or directory. Use a literal, not relative, path.
+
+		.PARAMETER Credential
+			The credential to use to perform the operation.
+
 		.EXAMPLE
-			Remove-JavaInstallations -MajorVersion 8 -ReleaseVersion 15 -PluginVersion 11 -Architecture All
+			Rename-FileOrDirectory -Path c:\temp\file1.txt -NewName c:\temp\file2.txt -PassThru
 
-			Removes all versions previous to JRE 8u15.
+			In this example the file c:\temp\file2.txt and c:\temp\file2(1).txt already exists. The file c:\temp\file1.txt is renamed to
+			c:\temp\file2(2).txt and the file info about its resulting name is returned to the pipeline.
+
+		.INPUTS
+			System.String
+
+		.OUTPUTS
+			None or System.IO.DirectoryInfo or System.IO.FileInfo
+
+		.NOTES
+			AUTHOR: Michael Haken
+			LAST UPDATE: 10/23/2017
+	#>
+	[CmdletBinding()]
+	[OutputType([System.IO.FileInfo], [System.IO.DirectoryInfo])]
+	Param(
+		[Parameter(Mandatory = $true, Position = 0, ValueFromPipeline = $true)]
+		[ValidateScript({
+			Test-Path -Path $_
+		})]
+		[ValidateNotNullOrEmpty()]
+		[System.String]$Path,
+
+		[Parameter(Mandatory = $true, Position = 1)]
+		[ValidateNotNullOrEmpty()]
+		[System.String]$NewName,
+
+		[Parameter()]
+		[Switch]$Force,
+
+		[Parameter()]
+		[ValidateNotNull()]
+		[System.Management.Automation.Credential()]
+		[System.Management.Automation.PSCredential]$Credential = [System.Management.Automation.PSCredential]::Empty,
+
+		[Parameter()]
+		[Switch]$PassThru
+	)
+
+	Begin{
+	}
+
+	Process {
+		[System.IO.FileInfo]$Info = New-Object -TypeName System.IO.FileInfo($Path)
+		$Base = $Info.DirectoryName
+		$Name = $Info.BaseName
+		$Ext = $Info.Extension
+
+		$Counter = 1
+
+		while (Test-Path -Path $NewName)
+		{
+			$NewName = "$Base\$Name($Counter)$Ext"
+			$Counter++
+		}
+
+		[System.Collections.Hashtable]$Splat = @{}
+
+		if ($Force)
+		{
+			$Splat.Add("Force", $true)
+		}
+
+		if ($Credential -ne [System.Management.Automation.PSCredential]::Empty)
+		{
+			$Splat.Add("Credential", $Credential)
+		}
+
+		if ($PassThru)
+		{
+			$Splat.Add("PassThru", $true)
+		}
+
+		Rename-Item -Path $Path -NewName $NewName @Splat
+	}
+
+	End {
+	}
+}
+
+Function Get-FileVersion {
+	<#
+		.SYNOPSIS
+			Gets the version of a specific file or file running a Windows service from its metadata.
+
+		.DESCRIPTION
+			This cmdlet gets the FileVersion data from a specified file or file running a service. If no version is included in the FileInfo, the cmdlet returns "0".
+
+		.PARAMETER Path
+			The path to the file.
+
+		.PARAMETER Service
+			The name of the service.
+
+		.INPUTS
+			None
+
+		.OUTPUTS
+			System.String
+
+        .EXAMPLE
+			Get-FileVersion -Path "c:\installer.exe"
+
+			Gets the file version of installer.exe.
 
 		.EXAMPLE
-			Remove-JavaInstallations -MajorVersion 8 -ReleaseVersion 15 -PluginVersion 11 -Architecture x64
+			Get-FileVersion -Service lmhosts
 
-			Removes all versions previous to JRE 8u15 that are x64 installations.
+			Gets the file version of the svchost.exe running the lmhosts service.
+
+		.NOTES
+			AUTHOR: Michael Haken
+			LAST UPDATE: 8/24/2016
+	#>
+	[CmdletBinding()]
+	[OutputType([System.String])]
+	Param(
+		[Parameter(Mandatory = $true, ParameterSetName = "File", ValueFromPipeline = $true, Position = 0)]
+		[ValidateScript({
+			Test-Path -Path $_
+		})]
+		[System.String]$Path
+	)
+
+	DynamicParam
+    {
+        [System.Management.Automation.RuntimeDefinedParameterDictionary]$ParamDictionary = New-Object -TypeName System.Management.Automation.RuntimeDefinedParameterDictionary
+
+		$Services = Get-Service | Select-Object -ExpandProperty Name
+		New-DynamicParameter -Name "ServiceName" -ParameterSets "Service" -Type ([System.String]) -Mandatory -ValueFromPipeline -Position 0 -ValidateSet $Services -RuntimeParameterDictionary $ParamDictionary | Out-Null
+
+		return $ParamDictionary
+	}
+
+	Begin {
+	}
+
+	Process {
+		switch ($PSCmdlet.ParameterSetName) {
+			"File" {
+				break
+			}
+			"Service" {
+				$Path = (Get-WmiObject -Class Win32_Service -Filter "Name = `"$($PSBoundParameters.ServiceName)`"" | Select-Object -ExpandProperty PathName).Trim("`"")
+				break
+			}
+			default {
+				Write-Log -Message "Could not determine parameter set name from given parameters." -Level FATAL
+			}
+		}
+
+		$Version = New-Object -TypeName System.IO.FileInfo($Path) | Select-Object -ExpandProperty VersionInfo | Select-Object -ExpandProperty FileVersion
+
+		if ([System.String]::IsNullOrEmpty($Version))
+		{
+			$Version = "0"
+		}
+
+		Write-Output -InputObject $Version
+	}
+
+	End {	
+	}
+}
+
+Function Extract-ZipFile {
+	<#
+		.SYNOPSIS
+			The cmdlet extracts the contents of a zip file to a specified destination.
+
+		.DESCRIPTION
+			The cmdlet extracts the contents of a zip file to a specified destination and optionally preserves the contents in the destination if they already exist.
+
+		.PARAMETER Source
+			The path to the zip file.
+
+		.PARAMETER Destination
+			The folder where the zip file should be extracted. The destination is created if it does not already exist.
+
+		.PARAMETER NoOverwrite
+			Specify if the contents in the destination should be preserved if they already exist.
+
+		.INPUTS
+			None
+		
+		.OUTPUTS
+			None
+
+		.EXAMPLE 
+			Extract-ZipFile -Source "c:\test.zip" -Destination "c:\test"
+
+			Extracts the contents of test.zip to c:\test.
+
+		.NOTES
+			None
+	#>
+	[CmdletBinding()]
+	[OutputType()]
+	Param(
+		[Parameter(Position = 0, Mandatory = $true)]
+		[ValidateScript({
+			Test-Path -Path $_
+		})]
+		[System.String]$Source,
+
+		[Parameter(Position = 1, Mandatory = $true)]
+		[ValidateNotNullOrEmpty()]
+		[System.String]$Destination,
+
+		[Parameter()]
+		[Switch]$NoOverwrite
+	)
+
+	Begin {
+		Add-Type -AssemblyName System.IO.Compression.FileSystem
+	}
+
+	Process {
+		if (!(Test-Path -Path $Source)) {
+			throw [System.IO.FileNotFoundException]("Source zip file not found.")
+		}
+
+		if (!(Test-Path -Path $Destination)) {
+
+			Write-Log "Zip extract destination $Destination does not exist, creating it."
+
+			try {
+				New-Item -Path $Destination -ItemType Directory | Out-Null
+
+				$Counter = 0
+
+				while (!(Test-Path -Path $Destination)) {
+					Start-Sleep -Seconds 1
+					$Counter++
+
+					if ($Counter -gt 60) {
+						throw "Timeout error waiting for the zip extraction destination $Destination to be created."
+					}
+				}
+			}
+			catch [Exception] {
+				Write-Log -ErrorRecord $_
+				throw $_.Exception
+			}
+		}
+		else {
+			if (![System.IO.Directory]::Exists($Destination)) {
+				throw [System.IO.DirectoryNotFoundException]("The destination is a file, not a directory.")
+			}
+		}
+
+		if (-not $NoOverwrite) {
+			Write-Log -Message "Extracting zip without overwriting existing content."
+			[System.IO.Compression.ZipArchive]$ZipArchive = [System.IO.Compression.ZipFile]::OpenRead($Source)
+
+			try
+			{
+				foreach ($ZipArchiveEntry in $ZipArchive.Entries) {
+					$FullPath = [System.IO.Path]::Combine($Destination, $ZipArchiveEntry.FullName)
+
+					#Test to see if the archive entry is a directory
+					#Directories' name attribute is empty, 
+					if ([System.String]::IsNullOrEmpty($ZipArchiveEntry.Name) -or $ZipArchiveEntry.FullName.Contains("/")) {
+						$Temp = [System.IO.Path]::Combine($Destination, $ZipArchiveEntry.FullName.Substring(0, $ZipArchiveEntry.FullName.LastIndexOf("/")))
+						$Temp = $Temp.Replace("/","\")
+						if (![System.IO.Directory]::Exists($Temp)) {
+							try {
+								New-Item -Path $Temp -ItemType Directory | Out-Null
+
+								$Counter = 0
+								while (!(Test-Path -Path $Temp)) {
+									Start-Sleep -Seconds 1
+									$Counter++
+
+									if ($Counter -gt 60) {
+										throw "Timeout waiting for directory creation $Temp"
+									}
+								}
+							}
+							catch [Exception] {
+								Write-Log -ErrorRecord $_
+							}
+						}
+					}
+
+					if (![System.String]::IsNullOrEmpty($ZipArchiveEntry.Name)) {
+						try
+						{
+							$FullPath = $FullPath.Replace("/","\")
+
+							[System.IO.Compression.ZipFileExtensions]::ExtractToFile($ZipArchiveEntry, $FullPath, $true)
+
+							$Counter = 0
+							
+							while(!(Test-Path -Path $FullPath)) {
+								Start-Sleep -Seconds 1
+								$Counter++
+
+								if ($Counter -gt 60) {
+									Write-Log "Timeout waiting for zip extraction of $FullPath"
+									break
+								}
+							}
+						}
+						catch [Exception] {
+							Write-Log -ErrorRecord $_
+						}
+					}
+				}
+			}
+			finally {
+				$ZipArchive.Dispose()
+			}
+		}
+		else {
+			Write-Log -Message "Extracting zip with overwrite."
+			[System.IO.Compression.ZipFile]::ExtractToDirectory($Source, $Destination)
+		}
+	}
+
+	End {		
+	}
+}
+
+#endregion
+
+
+#region Logging
+
+Function Write-Log {
+	<#
+		.SYNOPSIS
+			Writes to a log file and echoes the message to the console.
+
+		.DESCRIPTION
+			The cmdlet writes text or a PowerShell ErrorRecord to a log file and displays the log message to the console at the specified logging level.
+
+		.PARAMETER Message
+			The message to write to the log file.
+
+		.PARAMETER ErrorRecord
+			Optionally specify a PowerShell ErrorRecord object to include with the message.
+
+		.PARAMETER Level
+			The level of the log message, this is either INFO, WARNING, ERROR, DEBUG, or VERBOSE. This defaults to INFO.
+
+		.PARAMETER Path
+			The path to the log file. If this is not specified, the message is only echoed out.
+
+		.PARAMETER NoInfo
+			Specify to not add the timestamp and log level to the message being written.
+
+		.INPUTS
+			System.String
+
+				The log message can be piped to Write-Log
+
+		.OUTPUTS
+			None
+
+        .EXAMPLE
+			try {
+				$Err = 10 / 0
+			}
+			catch [Exception]
+			{
+				Write-Log -Message $_.Exception.Message -ErrorRecord $_ -Level ERROR
+			}
+
+			Writes an ERROR log about dividing by 0 to the default log path.
 
 		.EXAMPLE
-			Remove-JavaInstallations -FullRemoval
+			Write-Log -Message "The script is starting"
 
-			Removes all versions of JRE from the system.
+			Writes an INFO log to the default log path.
 
+		.NOTES
+			AUTHOR: Michael Haken
+			LAST UPDATE: 8/24/2016
+	#>
+	[CmdletBinding()]
+	[OutputType()]
+	Param(
+		[Parameter()]
+		[ValidateSet("INFO", "WARNING", "ERROR", "DEBUG", "VERBOSE", "FATAL", "VERBOSEERROR")]
+		[System.String]$Level = "INFO",
+
+		[Parameter(Position = 0, ValueFromPipeline = $true, ParameterSetName = "Message", Mandatory = $true)]
+		[ValidateNotNullOrEmpty()]
+		[System.String]$Message,
+
+		[Parameter(Position = 0, ValueFromPipeline = $true, ParameterSetName = "Error", Mandatory = $true)]
+		[Parameter(Position = 1, ParameterSetName = "Message")]
+		[ValidateNotNull()]
+		[System.Management.Automation.ErrorRecord]$ErrorRecord,
+
+		[Parameter()]
+		[ValidateNotNullOrEmpty()]
+		[System.String]$Path,
+
+		[Parameter()]
+		[Switch]$NoInfo
+	)
+
+	Begin {		
+	}
+
+	Process {
+		if ($ErrorRecord -ne $null) {
+			
+			if (-not [System.String]::IsNullOrEmpty($Message))
+			{
+				$Message += "`r`n"
+			}
+
+			$Message += ("Exception: `n" + ($ErrorRecord.Exception | Select-Object -Property * | Format-List | Out-String) + "`n")
+			$Message += ("Category: " + ($ErrorRecord.CategoryInfo.Category.ToString()) + "`n")
+			$Message += ("Stack Trace: `n" + ($ErrorRecord.ScriptStackTrace | Format-List | Out-String) + "`n")
+			$Message += ("Invocation Info: `n" + ($ErrorRecord.InvocationInfo | Format-List | Out-String))
+		}
+		
+		if ($NoInfo) {
+			$Content = $Message
+		}
+		else {
+			$Lvl = $Level
+			if ($Level -eq "VERBOSEERROR")
+			{
+				$Lvl = "ERROR"
+			}
+			$Content = "$(Get-Date) : [$Lvl] $Message"
+		}
+
+		if ([System.String]::IsNullOrEmpty($Path))
+		{
+			$Path = [System.Environment]::GetEnvironmentVariable("LogPath", [System.EnvironmentVariableTarget]::Machine)
+		}
+
+		if (-not [System.String]::IsNullOrEmpty($Path)) 
+		{
+			try
+			{
+				Add-Content -Path $Path -Value $Content
+			}
+			catch [Exception]
+			{
+				Write-Warning -Message "Could not write to log file : $($_.Exception.Message)`n$Content"
+			}
+		}
+
+		switch ($Level) {
+			"INFO" {
+				Write-Host $Content
+				break
+			}
+			"WARNING" {
+				Write-Warning -Message $Content
+				break
+			}
+			"ERROR" {
+				Write-Error -Message $Content
+				break
+			}
+			"DEBUG" {
+				Write-Debug -Message $Content
+				break
+			}
+			"VERBOSE" {
+				Write-Verbose -Message $Content
+				break
+			}
+			"VERBOSEERROR" {
+				Write-Verbose -Message $Content
+				break
+			}
+			"FATAL" {
+				throw (New-Object -TypeName System.Exception($Content))
+			}
+			default {
+				Write-Warning -Message "Could not determine log level to write."
+				Write-Host $Content
+				break
+			}
+		}
+	}
+
+	End {
+	}
+}
+
+Function Write-CCMLogFormat {
+	<#
+		.SYNOPSIS
+			Writes a log file formatted to be read by the CMTrace tool.
+
+		.DESCRIPTION
+			The Write-CCMLogFormat cmdlet takes a message and writes it to a file in the format that can be read by CMTrace.
+
+		.PARAMETER Message
+			The message to be written to the file.
+
+		.PARAMETER FilePath
+			The path of the file to write the log information.
+
+		.PARAMETER LogLevel
+			The log level of the message. 1 is Informational, 2 is Warning, and 3 is Error. This defaults to Informational.
+
+		.PARAMETER Component
+			The component generating the log file.
+
+		.PARAMETER Thread
+			The thread ID of the process running the task. This defaults to the current managed thread ID.
+
+		.EXAMPLE
+			Write-CCMLogFormat -Message "Test Warning Message" -FilePath "c:\logpath.log" -LogLevel 2 -Component "PowerShell"
+
+			This command writes "Test Warning Message" to c:\logpath.log and sets it as a Warning message in the CMTrace log viewer tool.
+
+		.INPUTS
+			System.String, System.String, System.Int32, System.String, System.Int32
+
+		.OUTPUTS
+			None
+		
 		.NOTES
 			AUTHOR: Michael Haken	
 			LAST UPDATE: 11/14/2016
 
 		.FUNCTIONALITY
-			The intended use of this cmdlet is to conduct complete removals of the Java JRE software.
+			The intended use of this cmdlet is to write CMTrace formatted log files to be used with the viewer tool.
 	#>
 
-	[CmdletBinding(DefaultParameterSetName="Cleanup")]
-	Param(
-		[Parameter(Position=0,ParameterSetName="Cleanup",Mandatory=$true)]
-		[int]$MajorVersion,
-		[Parameter(ParameterSetName="Cleanup")]
-		[int]$MinorVersion = 0,
-		[Parameter(Position=1,ParameterSetName="Cleanup",Mandatory=$true)]
-		[int]$ReleaseVersion,
-		[Parameter(Position=2,ParameterSetName="Cleanup",Mandatory=$true)]
-		[int]$PluginVersion,
-		[Parameter(ParameterSetname="Cleanup")]
-		[ValidateSet("x86","x64","All")]
-		[string]$Architecture = "All",
-		[Parameter(ParameterSetName="Removal",Mandatory=$true)]
-		[switch]$FullRemoval	
-	)
-
-	Begin
-	{
-		if ((Get-PSDrive | Where-Object {$_.Root -eq "HKEY_CLASSES_ROOT"}))
-		{
-			Get-PSDrive | Where-Object {$_.Root -eq "HKEY_CLASSES_ROOT"} | Remove-PSDrive
-		}
-
-		New-PSDrive -Name HKCR -PSProvider Registry -Root HKEY_CLASSES_ROOT | Out-Null
-
-		#These keys are used to cleanup HKLM:\\SOFTWARE\MICROSOFT\WINDOWS\CURRENTVERSION\UNINSTALL
-		$64BIT_REGISTRY_KEY = "*26A24AE4-039D-4CA4-87B4-2F8641*FF*" # 26A24AE4-039D-4CA4-87B4-2F46417015FF - Java 7u15 x64 
-		$32BIT_REGISTRY_KEY = "*26A24AE4-039D-4CA4-87B4-2F8321*FF*"
-		$GENERIC_REGISTRY_KEY = "*26A24AE4-039D-4CA4-87B4-2F8*1*FF*"
-
-		#These keys are used to cleanup HKCR:\\Installer\Products
-		$64BIT_HKCR_INSTALLER_PRODUCTS_KEY = "*4EA42A62D9304AC4784BF23812*FF*" # 4EA42A62D9304AC4784BF238120683FF - Java 6u38 x86
-		$32BIT_HKCR_INSTALLER_PRODUCTS_KEY = "*4EA42A62D9304AC4784BF26814*FF*"
-		$GENERIC_HKCR_INSTALLER_PRODUCTS_KEY = "*4EA42A62D9304AC4784BF2*81*FF*"
-
-		#Java AutoUpdate
-		$HKCR_JAVA_AUTOUPDATER = "F60730A4A66673047777F5728467D401"
-		$HKLM_JAVA_AUTOUPDATER = "F60730A4A66673047777F5728467D401"
-
-		#Build the software version 
-		[string]$LONG_PUNCTUATED_VERSION = ""
-		[string]$NON_PUNCTUATED_VERSION = ""
-		[string]$SHORT_VERSION = "1." + $MajorVersion # 1.7
-		[string]$BASE_VERSION = "1." + $MajorVersion + "." + $MinorVersion + ".0" # 1.7.0
-		[string]$FULL_VERSION = ""
-		[string]$PLUGIN_VERSION = $PluginVersion.ToString()		
-	}
-
-	Process
-	{
-		$Temp = $ReleaseVersion.ToString().ToCharArray()
-		[System.Array]::Reverse($Temp)
-		[string]$REVERSE_RELEASE = $Temp.ToString()
-
-		$Temp = ($MajorVersion.ToString() + $MinorVersion.ToString()).ToCharArray()
-		[System.Array]::Reverse($Temp)
-		[string]$REVERSE_VERSION = $Temp.ToString()
-
-		#Make the current release string two characters long
-		if ($ReleaseVersion.ToString().Length -eq 1) 
-		{
-			$ReleaseVersion = "0" + $ReleaseVersion.ToString()
-		}
-
-		switch ($ReleaseVersion) 
-		{
-			"00" {
-				$FULL_VERSION = "1." + $MajorVersion + (& if($MinorVersion -gt 0) {"." + $MinorVersion } else {""}) # 1.7 or 1.7.1
-				$NON_PUNCTUATED_VERSION = "1" + $MajorVersion + $MinorVersion # 170
-				$LONG_PUNCTUATED_VERSION = "1." + $MajorVersion + "." + $MinorVersion # 1.7.0
-				break
-			}
-			default {
-				$FULL_VERSION = "1." + $MajorVersion + "." + $MinorVersion + "_" + $ReleaseVersion # 1.7.0_15
-				$NON_PUNCTUATED_VERSION = "1" + $MajorVersion + $MinorVersion + "_" + $ReleaseVersion # 170_15
-				$LONG_PUNCTUATED_VERSION = $FULL_VERSION # 1.7.0_15
-				break
-			}
-		}
-
-		$REVERSE_VERSION_REGISTRY_KEY = $REVERSE_VERSION + $REVERSE_RELEASE + "FF*"
-		$NON_PUNCTUATED_REGISTRY_KEY = $MajorVersion.ToString() + $MinorVersion.ToString() + $ReleaseVersion.ToString() + "FF*"
-		
-		#Create the registry strings to match Java in HKCR and HKLM
-		$UNINSTALL_REGISTRY_KEY = ""
-		$HKCR_REGISTRY_KEY = ""
-
-		switch ($Architecture)
-		{
-			# HKLM:\SOFTWARE\Wow6432Node\
-			"x86" {
-				$UNINSTALL_REGISTRY_KEY = "*26A24AE4-039D-4CA4-87B4-2F8321" + $NON_PUNCTUATED_REGISTRY_KEY # 3217000 or 3217015
-				$HKCR_REGISTRY_KEY = "*4EA42A62D9304AC4784BF23812" + $REVERSE_VERSION_REGISTRY_KEY + "*" #38120751
-				break
-			}
-			# HKLM:\SOFTWARE\
-			"x64" {
-				$UNINSTALL_REGISTRY_KEY = "*26A24AE4-039D-4CA4-87B4-2F8641" + $NON_PUNCTUATED_REGISTRY_KEY # 6417000 or 6417015
-				$HKCR_REGISTRY_KEY = "*4EA42A62D9304AC4784BF26814" + $REVERSE_VERSION_REGISTRY_KEY +"*" #68140751
-				break
-			}
-			"All" {
-				$UNINSTALL_REGISTRY_KEY = "*26A24AE4-039D-4CA4-87B4-2F8*1" + $NON_PUNCTUATED_REGISTRY_KEY # *17000 or *17015
-				$HKCR_REGISTRY_KEY = "*4EA42A62D9304AC4784BF2*81*" + $REVERSE_VERSION_REGISTRY_KEY + "*" #*81*0751
-				break
-			}
-		}
-
-		$FilePaths = @()
-		$UserProfiles = Get-ChildItem -Path "$env:SystemDrive\Users"
-
-		Write-Verbose -Message "[INFO] Getting All User Profiles"
-
-		foreach ($Profile in $UserProfiles)
-		{
-			$FilePaths += "$env:SystemDrive\Users\" + $Profile.Name + "\AppData\LocalLow\Sun"
-			$FilePaths += "$env:SystemDrive\Users\" + $Profile.Name + "\AppData\Local\Temp\java_install_reg.log"
-			$FilePaths += "$env:SystemDrive\Users\" + $Profile.Name + "\AppData\Local\Temp\java_install.log"  
-		}
-
-		Write-Verbose -Message "[INFO] Adding file paths"
-
-		$FilePaths += "$env:SYSTEMROOT\Temp\java_install.log"
-		$FilePaths += "$env:SYSTEMROOT\Temp\java_install_reg.log"
-
-		if ($PSCmdlet.ParameterSetName -eq "Removal")
-		{
-			$FilePaths += "$env:ALLUSERSPROFILE\Sun"
-
-			if ($Architecture -eq "x86" -or $Architecture -eq "All")
-			{
-				$FilePaths += "$env:SystemDrive\Program Files (x86)\Java"
-				$FilePaths += "$env:SYSTEMROOT\System32\java.exe"
-				$FilePaths += "$env:SYSTEMROOT\System32\javaw.exe"
-				$FilePaths += "$env:SYSTEMROOT\System32\javaws.exe"
-			}
-			if ($Architecture -eq "x64" -or $Architecture -eq "All")
-			{
-				$FilePaths += "$env:SystemDrive\Program Files\Java"
-				$FilePaths += "$env:SYSTEMROOT\SysWow64\java.exe"
-				$FilePaths += "$env:SYSTEMROOT\SysWow64\javaw.exe"
-				$FilePaths += "$env:SYSTEMROOT\SysWow64\javaws.exe"
-			}
-		}
-
-		if ($PSCmdlet.ParameterSetName -eq "Cleanup")
-		{
-			if ($Architecture -eq "x86" -or $Architecture -eq "All")
-			{
-				$FilePaths += @(Get-ChildItem "$env:SystemDrive\program files (x86)\Java" | Where-Object {$_.name -notlike "jre" + $MajorVersion})
-			}
-			if ($Architecture -eq "x64" -or $Architecture -eq "All")
-			{
-				$FilePaths += @(Get-ChildItem "$env:SystemDrive\program files\Java" | Where-Object {$_.name -notlike "jre" + $MajorVersion})
-			}
-		}
-		
-		Write-Verbose -Message "[INFO] Getting Registry Keys"
-        $ErrorActionPreference = "SilentlyContinue"
-		$RegistryKeys = @()
-
-		$RegistryKeys += 'HKCU:\Software\AppDataLow\Software\Javasoft'
-		$RegistryKeys += 'HKCU:\Software\Javasoft\Java Update'
-		$RegistryKeys += 'HKCU:\Software\Microsoft\Protected Storage System Provider\S-1-5-21-1292428093-1275210071-839522115-1003\Data'
-		$RegistryKeys += 'HKLM:\SOFTWARE\MozillaPlugins\@java.com'
-		$RegistryKeys += 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UserData\S-1-5-18\Components\0357E4991DA5FF14F9615B3312070F06'
-		$RegistryKeys += 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UserData\S-1-5-18\Components\0357E4991DA5FF14F9615B3512070F06'
-		$RegistryKeys += 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UserData\S-1-5-18\Products\4EA42A62D9304AC4784BF238120652FF'
-		$RegistryKeys += 'HKLM:\SOFTWARE\Classes\JavaSoft.JavaBeansBridge'
-		$RegistryKeys += 'HKLM:\SOFTWARE\Classes\JavaSoft.JavaBeansBridge.1'
-		$RegistryKeys += 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Installer\UserData\S-1-5-18\Components\0357E4991DA5FF14F9615B3312070F07'
-		$RegistryKeys += 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Installer\UserData\S-1-5-18\Components\0357E4991DA5FF14F9615B3312070F08'
-		$RegistryKeys += 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Installer\UserData\S-1-5-18\Components\0357E4991DA5FF14F9615B3312070F09'
-		$RegistryKeys += 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UserData\S-1-5-18\Products\4EA42A62D9304AC4784BF2381206220F'
-
-		if ($PSCmdlet.ParameterSetName -eq "Cleanup")
-		{
-			$RegistryKeys += @((Get-ChildItem -Path "HKCR:\" | Where-Object {($_.Name -like "*JavaPlugin*") -and ($_.Name -notlike "*JavaPlugin." + $NON_PUNCTUATED_VERSION + "*")}).PSPath)
-			$RegistryKeys += @((Get-ChildItem -Path "HKCR:\" | Where-Object {($_.name -like "*JavaWebStart.isInstalled.*") -and ($_.Name -notlike "*JavaWebStart.isInstalled." + $BASE_VERSION +"*")}).PSPath)
-			$RegistryKeys += @((Get-ChildItem -Path "HKCR:\Installer\Products" | Where-Object {($_.Name -like $GENERIC_HKCR_INSTALLER_PRODUCTS_KEY) -and ($_.Name -notlike $HKCR_REGISTRY_KEY)}).PSPath)
-			$RegistryKeys += @((Get-ChildItem -Path "HKCU:\Software\JavaSoft\Java Runtime Environment" | Where-Object {($_.Name -notlike "*" + $FULL_VERSION +"*") -and ($_.name -notlike "*" + $LONG_PUNCTUATED_VERSION +"*")}).PSPath)
-			$RegistryKeys += @((Get-ChildItem -Path "HKCU:\Software\JavaSoft\Java2D" | Where-Object {($_.Name -notlike  "*" + $LONG_PUNCTUATED_VERSION + "*")}).PSPath) 
-			$RegistryKeys += @((Get-ChildItem -Path "HKCU:\Software\Classes" | Where-Object {($_.Name -like "*JavaPlugin*") -and ($_.Name -notlike "*JavaPlugin." + $NON_PUNCTUATED_VERSION + "*")}).PSPath)
-			$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\Classes\Installer\Products" | Where-Object {($_.Name -like $GENERIC_HKCR_INSTALLER_PRODUCTS_KEY) -and  ($_.Name -notlike $HKCR_REGISTRY_KEY) }).PSPath)
-
-			if ($Architecture -eq "x86" -or $Architecture -eq "All")
-			{
-				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\Classes\Installer\Features\" | Where-Object {$_.Name -like $32BIT_REGISTRY_KEY}).PSPath)
-				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\wow6432node\Microsoft\Windows\CurrentVersion\Uninstall\" | Where-Object {($_.Name -like $32BIT_REGISTRY_KEY) -and ($_.Name -notlike $UNINSTALL_REGISTRY_KEY)}).PSPath)
-				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\Classes" | Where-Object {($_.Name -notlike "*JavaPlugin." + $NON_PUNCTUATED_VERSION + "*") -and ($_.Name -like "*JavaPlugin*")}).PSPath) 
-				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\Classes" | Where-Object {($_.Name -notlike "*JavaWebStart.isInstalled." + $BASE_VERSION + "*") -and ($_.Name -like "*JavaWebStart.isInstalled.*")}).PSPath) 
-				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\Wow6432Node\JavaSoft\Java Runtime Environemt" | Where-Object {($_.Name -notlike  "*" + $FULL_VERSION + "*") -and ($_.Name -notlike  "*" + $SHORT_VERSION + "*")}).PSPath)
-				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\Wow6432Node\JavaSoft\Java Plug-in" | Where-Object {($_.Name -notlike  "*" + $PLUGIN_VERSION + "*")}).PSPath)
-				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\Wow6432Node\JavaSoft\Java Web Start" | Where-Object {($_.Name -notlike "*" + $FULL_VERSION +"*") -and ($_.name -notlike "*" + $SHORT_VERSION +"*")}).PSPath)			
-			}
-
-			if ($Architecture -eq "x64" -or $Architecture -eq "All")
-			{
-				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\Classes\Installer\Features\" | Where-Object {$_.Name -like $64BIT_REGISTRY_KEY}).PSPath)
-				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\" | Where-Object {($_.Name -like $64BIT_REGISTRY_KEY) -and ($_.Name -notlike $UNINSTALL_REGISTRY_KEY)}).PSPath) 
-				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\Classes" | Where-Object {($_.Name -notlike "*JavaWebStart.isInstalled." + $BASE_VERSION + "*") -and ($_.Name -like "*JavaWebStart.isInstalled.*")}).PSPath)
-				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\Classes" | Where-Object {($_.Name -notlike "*JavaPlugin." + $NON_PUNCTUATED_VERSION + "*") -and ($_.Name -like "*JavaPlugin*")}).PSPath)
-				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\JavaSoft\Java Runtime Environemt" | Where-Object {($_.Name -notlike  "*" + $FULL_VERSION + "*") -and ($_.Name -notlike  "*" + $SHORT_VERSION + "*")}).PSPath)
-				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\JavaSoft\Java Plug-in" | Where-Object {($_.Name -notlike  "*" + $PLUGIN_VERSION + "*")}).PSPath)
-				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\JavaSoft\Java Web Start" | Where-Object {($_.Name -notlike "*" + $FULL_VERSION +"*") -and ($_.name -notlike "*" + $SHORT_VERSION +"*")}).PSPath)	
-			}
-		}
-
-		if ($PSCmdlet.ParameterSetName -eq "Removal")
-		{			
-			$RegistryKeys += "HKLM:\SOFTWARE\Classes\jarfile"
-			$RegistryKeys += @((Get-ChildItem -Path "HKCR:\" | Where-Object {($_.Name -like "*JavaPlugin*")}).PSPath)
-			$RegistryKeys += @((Get-ChildItem -Path "HKCR:\" | Where-Object {($_.Name -like "*JavaScript*")}).PSPath)
-			$RegistryKeys += @((Get-ChildItem -Path "HKCR:\" | Where-Object {($_.Name -like "*JavaWebStart*")}).PSPath)
-			$RegistryKeys += @((Get-ChildItem -Path "HKCR:\Installer\Products" | Where-Object {($_.Name -like $GENERIC_HKCR_INSTALLER_PRODUCTS_KEY)}).PSPath)
-			$RegistryKeys += "HKCU:\Software\JavaSoft\Java Runtime Environment"
-			$RegistryKeys += "HKCU:\Software\JavaSoft\Java2D"
-			$RegistryKeys += "HKCR:\Installer\Products\$HKCR_JAVA_AUTOUPDATER"
-
-			if ($Architecture -eq "x86" -or $Architecture -eq "All")
-			{
-				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\Classes\Installer\Features\" | Where-Object {$_.Name -like $32BIT_REGISTRY_KEY -or $_.Name -like $HKLM_JAVA_AUTOUPDATER}).PSPath)
-				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\wow6432node\Microsoft\Windows\CurrentVersion\Uninstall\" | Where-Object {$_.Name -like $32BIT_REGISTRY_KEY}).PSPath) 
-				$RegistryKeys += "HKLM:\SOFTWARE\Wow6432Node\JavaSoft"
-				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\Classes" | Where-Object {$_.Name -like "*JavaWebStart*"}).PSPath)
-				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\Classes" | Where-Object {$_.Name -like "*JavaPlugin*"}).PSPath)
-				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\Classes\Installer\Products" | Where-Object {$_.Name -like $32BIT_HKCR_INSTALLER_PRODUCTS_KEY}).PSPath)
-				$RegistryKeys += "HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\App Paths\javaws.exe"
-			}
-
-			if ($Architecture -eq "x64" -or $Architecture -eq "All")
-			{
-				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\Classes\Installer\Features\" | Where-Object {$_.Name -like $64BIT_REGISTRY_KEY -or $_.Name -like $HKLM_JAVA_AUTOUPDATER}).PSPath)
-				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\" | Where-Object {$_.Name -like $64BIT_REGISTRY_KEY -or $_.Name -like $HKLM_JAVA_AUTOUPDATER}).PSPath) 
-				$RegistryKeys += "HKLM:\SOFTWARE\JavaSoft"
-				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\Classes" | Where-Object {$_.Name -like "*JavaWebStart*"}).PSPath)
-				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\Software\Classes" | Where-Object {$_.Name -like "*JavaPlugin*"}).PSPath)
-				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\Classes\Installer\Products" | Where-Object {$_.Name -like $64BIT_HKCR_INSTALLER_PRODUCTS_KEY}).PSPath)
-				$RegistryKeys += "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\javaws.exe"
-			}
-		}
-
-		Write-Verbose -Message "[INFO] Getting Registry Key Properties"
-
-		$RegistryKeyProperties = @()
-
-		$RegistryKeyProperties += @(Get-RegistryKeyEntries -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\Folders") 
-		$RegistryKeyProperties += @(Get-RegistryKeyEntries -Path "HKLM:\System\ControlSet001\Control\Session Manager\Environment")
-		$RegistryKeyProperties += @(Get-RegistryKeyEntries -Path "HKLM:\System\ControlSet002\Control\Session Manager\Environment")
-		$RegistryKeyProperties += @(Get-RegistryKeyEntries -Path "HKLM:\System\ControlSet003\Control\Session Manager\Environment")
-		$RegistryKeyProperties += @(Get-RegistryKeyEntries -Path "HKLM:\System\CurrentControlSet\Control\Session Manager\Environment")
-		$RegistryKeyProperties += @(Get-RegistryKeyEntries -Path "HKLM:\SOFTWARE\Classes\jarfile\shell\open\command")
-
-		$EntriesToKeep = @()
-
-		if ($PSCmdlet.ParameterSetName -eq "Cleanup")
-		{
-			switch ($Architecture)
-			{
-				"x86" {
-					$RegistryKeyProperties += @(Get-RegistryKeyEntries -Path "HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\App Paths\javaws.exe")
-					$NOT_LIKE_1 = "$env:SystemDrive\program files (x86)\*\jre" + $majorbuild + "\*"
-					$NOT_LIKE_2 = "$env:SystemDrive\program files (x86)\*\jre" + $shortversion + "\*"
-					$LIKE = "$env:SystemDrive\program files (x86)\*\jre*"
-					break
-				}
-				"x64" {
-					$RegistryKeyProperties += @(Get-RegistryKeyEntries -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\javaws.exe")
-					$NOT_LIKE_1 = "$env:SystemDrive\program files\*\jre" + $majorbuild + "\*"
-					$NOT_LIKE_2 = "$env:SystemDrive\program files\*\jre" + $shortversion + "\*"
-					$LIKE = "$env:SystemDrive\program files\*\jre*"
-					break
-				}
-				"All" {
-					$RegistryKeyProperties += @(Get-RegistryKeyEntries -Path "HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\App Paths\javaws.exe")
-					$RegistryKeyProperties += @(Get-RegistryKeyEntries -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\javaws.exe")
-					$NOT_LIKE_1 = "$env:SystemDrive\program files*\*\jre" + $majorbuild + "\*"
-					$NOT_LIKE_2 = "$env:SystemDrive\program files*\*\jre" + $shortversion + "\*"
-					$LIKE = "$env:SystemDrive\program files*\*\jre*"
-					break
-				}
-			}
-
-			foreach ($Property in $RegistryKeyProperties)
-			{
-				if ((($Property.Property -like $LIKE) -and ($Property.Property -notlike $NOT_LIKE_1) -and ($Property.Property -notlike $NOT_LIKE_2)) -or
-					(($Property.Value -like $LIKE) -and ($Property.Value -notlike $NOT_LIKE_1) -and ($Property.Value -notlike $NOT_LIKE_2)))
-				{
-					$EntriesToKeep += $Property
-				}
-			}
-		}
-
-		if ($PSCmdlet.ParameterSetName -eq "Removal")
-		{
-			switch ($Architecture)
-			{
-				"x86" {
-					$RegistryKeyProperties += @(Get-RegistryKeyEntries -Path "HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\App Paths\javaws.exe")
-					$LIKE = "$env:SystemDrive\program files (x86)\*\jre*"
-					break
-				}
-				"x64" {
-					$RegistryKeyProperties += @(Get-RegistryKeyEntries -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\javaws.exe")
-					$LIKE = "$env:SystemDrive\program files\*\jre*"
-					break
-				}
-				"All" {
-					$RegistryKeyProperties += @(Get-RegistryKeyEntries -Path "HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\App Paths\javaws.exe")
-					$RegistryKeyProperties += @(Get-RegistryKeyEntries -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\javaws.exe")
-					$LIKE = "$env:SystemDrive\program files*\*\jre*"
-					break
-				}
-			}
-
-			foreach ($Property in $RegistryKeyProperties)
-			{
-				if (($Property.Property -like $LIKE) -or ($Property.Value -like $LIKE))
-				{
-					$EntriesToKepp += $Property
-				}
-			}
-		}
-
-		$RegistryKeyProperties = $EntriesToKeep
-
-        $ErrorActionPreference = "Continue"
-
-		[int]$DirectoryCount = 0
-		[int]$RegistryKeyCount = 0
-		[int]$RegistryEntryCount = 0
-
-		Write-Verbose -Message "[INFO] Removing Directories and Files"
-
-		foreach ($Item in $FilePaths)
-		{
-			if (Test-Path -Path $Item)
-			{
-				$DirectoryCount++
-				Remove-Item -Path $Item -Force -Recurse
-			}
-		}
-
-		Write-Verbose -Message "[INFO] Removing Registry Keys"
-
-		foreach ($Item in $RegistryKeys)
-		{
-			if (Test-Path -Path $Item)
-			{
-				$RegistryKeyCount++
-				Remove-Item -Path $Item -Force -Recurse
-			}
-		}
-
-		Write-Verbose -Message "[INFO] Removing Registry Key Entries"
-
-		foreach ($Item in $RegistryKeyProperties)
-		{
-			if (Test-Path -Path $Item.Path)
-			{
-				$RegistryEntryCount++
-				Remove-ItemProperty -Path $Item.Path -Name $Item.Property -Force
-			}
-		}
-
-		Write-Host "[INFO] Java cleanup removed $DirectoryCount directories, $RegistryKeyCount registry keys, and $RegistryEntryCount registry key entries."
-	}
-
-	End
-	{		
-	}
-}
-
-Function Get-RegistryKeyEntries {
-	<#
-		.SYNOPSIS
-			Gets all of the properties and their values associated with a registry key.
-
-		.DESCRIPTION
-			The Get-RegistryKeyEntries cmdlet gets each entry and its value for a specified registry key.
-
-		.PARAMETER Path
-			The registry key path in the format that PowerShell can process, such as HKLM:\Software\Microsoft or Registry::HKEY_LOCAL_MACHINE\Software\Microsoft
-
-		.INPUTS
-			System.String
-
-				You can pipe a registry path to Get-RegistryKeyEntries.
-
-		.OUTPUTS
-			System.Management.Automation.PSCustomObject[]
-
-		.EXAMPLE
-			Get-RegistryEntries -Path HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall
-
-			Gets all of the entries associated with the registry key. It does not get any information about subkeys.
-
-		.NOTES
-			AUTHOR: Michael Haken	
-			LAST UPDATE: 2/27/2016
-
-		.FUNCTIONALITY
-			The intended use of this cmdlet is to supplement the Get-ItemProperty cmdlet to get the values for every entry in a registry key.
-	#>
 	[CmdletBinding()]
+	[OutputType()]
 	Param(
-		[Parameter(Position=0,ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true,Mandatory=$true)]
-		[ValidateScript({Test-Path -Path $_})]
-		[string]$Path
+		[Parameter(Position = 0 , ValueFromPipeline = $true, Mandatory = $true)]
+		[ValidateNotNullOrEmpty()]
+		[string]$Message,
+
+		[Parameter(Position = 1, Mandatory = $true)]
+		[ValidateNotNullOrEmpty()]
+		[System.String]$FilePath,
+
+		[Parameter(Position = 2)]
+		[ValidateSet(1,2,3)]
+		[System.Int32]$LogLevel = 1,
+
+		[Parameter(Position = 3)]
+		[System.String]$Component = [System.String]::Empty,
+
+		[Parameter(Position = 4)]
+		[System.Int32]$Thread = 0
 	)
 
-	Begin {}
-
-	Process
-	{
-		Get-Item -Path $Path | Select-Object -ExpandProperty Property | ForEach-Object {
-			Write-Output -InputObject ([PSCustomObject]@{"Path"=$Path;"Property"="$_";"Value"=(Get-ItemProperty -Path $Path -Name $_ | Select-Object -ExpandProperty $_)})
-		}
+	Begin {		
 	}
 
-	End {}
+	Process {
+		if ($Thread -eq 0) {
+			$Thread = [System.Threading.Thread]::CurrentThread.ManagedThreadId
+		}
+
+		$Date = Get-Date
+		$Time = ($Date.ToString("HH:mm:ss.fff") + "+" + ([System.TimeZone]::CurrentTimeZone.GetUtcOffset((Get-Date)).TotalMinutes * -1))
+		$Day = $Date.ToString("MM-dd-yyyy")
+
+		$File = $FilePath.Substring($FilePath.LastIndexOf("\") + 1)
+		[string]$Log = "<![LOG[" + $Message + "]LOG]!><time=`"$Time`" date=`"$Day`" component=`"$Component`" context=`"`" type=`"$LogLevel`" thread=`"$Thread`" file=`"$File`">`r`n"
+		Add-Content -Path $FilePath -Value $Log -Force
+	}
+
+	End {		
+	}
 }
 
 Function Enable-TaskSchedulerHistory {
@@ -1497,6 +2411,7 @@ Function Enable-TaskSchedulerHistory {
 	#>
 	[Alias("Start-TaskSchedulerHistory")]
 	[CmdletBinding()]
+	[OutputType()]
 	Param ()
 
 	Begin {}
@@ -1552,10 +2467,11 @@ Function Start-KerberosTraceLog {
 			The intended use of this cmdlet is to assist in troubleshooting Kerberos authentication issues.
 	#>
 	[CmdletBinding()]
+	[OutputType()]
 	Param(
-		[Parameter(Position=0,ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true)]
+		[Parameter(Position = 0, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true)]
 		[Alias("DirectoryPath","LogDirectory")]
-		[string]$Path = "$PSScriptRoot\Logs"
+		[System.String]$Path = "$PSScriptRoot\Logs"
 	)
 
 	Begin {
@@ -1632,7 +2548,7 @@ Function Start-KerberosTraceLog {
 		$Process = Start-Process -FilePath "$env:SYSTEMROOT\System32\netsh.exe" -ArgumentList @("trace","stop") -NoNewWindow -RedirectStandardOutput "$OutputPath\netshstop.txt" -RedirectStandardError "$OutputPath\netshstop_error.txt"
 		$Process = Start-Process -FilePath "$env:SYSTEMROOT\System32\netsh.exe" -ArgumentList @("trace","start","scenario=NetConnection","capture=yes","persistent=no","traceFile=`"$Path\Tracefile.ETL`"","overwrite=yes") -NoNewWindow -RedirectStandardOutput "$OutputPath\netsh.txt" -RedirectStandardError "$OutputPath\netsh_error.txt"
 
-		Write-Host "Kerberos trace log started. Stdout logged to $OutputPath and logs written to $Path" -ForegroundColor Green
+		Write-Log -Message "Kerberos trace log started. Stdout logged to $OutputPath and logs written to $Path."
 	}
 
 	End {		
@@ -1680,10 +2596,13 @@ Function Stop-KerberosTraceLog {
 			The intended use of this cmdlet is to assist in troubleshooting Kerberos authentication issues.
 	#>
 	[CmdletBinding()]
+	[OutputType()]
 	Param(
-		[Parameter(Position=0,ValueFromPipeline=$true,ValueFromPipelineByPropertyName=$true)]
-		[ValidateScript({Test-Path -Path $_})]
-		[string]$Path = "$PSScriptRoot\Logs"
+		[Parameter(Position = 0, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true)]
+		[ValidateScript({
+			Test-Path -Path $_
+		})]
+		[System.String]$Path = "$PSScriptRoot\Logs"
 	)
 
 	Begin {
@@ -1726,7 +2645,7 @@ Function Stop-KerberosTraceLog {
 				Copy-Item -Path "$env:SYSTEMROOT\debug\netlogon.log" -Destination $Path -Force | Out-Null
 			}
 			catch [Exception] {
-				Write-Warning -Message $_.Exception.Message
+				Write-Log -ErrorRecord $_ -Level WARNING
 			}
 		}
 		
@@ -1735,7 +2654,7 @@ Function Stop-KerberosTraceLog {
 				Copy-Item -Path "$env:SYSTEMROOT\system32\lsass.log" -Destination $Path -Force | Out-Null
 			}
 			catch [Exception] {
-				Write-Warning -Message $_.Exception.Message
+				Write-Log -ErrorRecord $_ -Level WARNING
 			}
 		}
 
@@ -1751,454 +2670,128 @@ Function Stop-KerberosTraceLog {
 			$Path = $FileName
 		}
 		catch [Exception] {
-			Write-Warning -Message "Possible error creating zip file at $FileName : $($_.Exception.Message) The zip file may still have been created."
+			Write-Log -Message "Possible error creating zip file at $FileName, the zip file may still have been created." -ErrorRecord $_ -Level WARNING
 		}
 
-		Write-Host "Kerberos trace logs collected at $Path. Please share these for analysis." -ForegroundColor Green
+		Write-Log -Message "Kerberos trace logs collected at $Path. Please share these for analysis."
 	}
 
 	End {		
 	}
 }
 
-Function Test-IsLocalAdmin {
+#endregion
+
+
+#region Security / Forensics
+
+Function Start-PortScan {
 	<#
 		.SYNOPSIS
-			Tests is the current user has local administrator privileges.
+			Conducts a port scan on the selected computer.
 
 		.DESCRIPTION
-			The Test-IsLocalAdmin cmdlet tests the user's current Windows Identity for inclusion in the BUILTIN\Administrators role.
+			Tries to connect to common ports on a targetted system and reports back the port status of each. Each connection is scheduled as a job; the function waits for all jobs to exit the running status before returning scan information.
+
+		.PARAMETER ComputerName
+			The name of the computer to scan. The parameter defaults to "localhost"
 
 		.INPUTS
-			None
+			System.String
 
-		.OUTPUTS
-			None
-
-		.EXAMPLE
-			Test-IsLocalAdmin
-
-			This command returns true if the current is running the session with local admin credentials and false if not.
-
-		.NOTES
-			AUTHOR: Michael Haken	
-			LAST UPDATE: 2/27/2016
-
-		.FUNCTIONALITY
-			The intended use of this cmdlet is to test for administrative credentials before running other commands that require them.
-	#>
-	[CmdletBinding()]
-	Param()
-
-	Begin {}
-
-	Process {
-		Write-Output -InputObject ([System.Security.Principal.WindowsPrincipal][System.Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
-	}
-
-	End {}
- }
-
-Function Write-CCMLogFormat {
-	<#
-		.SYNOPSIS
-			Writes a log file formatted to be read by the CMTrace tool.
-
-		.DESCRIPTION
-			The Write-CCMLogFormat cmdlet takes a message and writes it to a file in the format that can be read by CMTrace.
-
-		.PARAMETER Message
-			The message to be written to the file.
-
-		.PARAMETER FilePath
-			The path of the file to write the log information.
-
-		.PARAMETER LogLevel
-			The log level of the message. 1 is Informational, 2 is Warning, and 3 is Error. This defaults to Informational.
-
-		.PARAMETER Component
-			The component generating the log file.
-
-		.PARAMETER Thread
-			The thread ID of the process running the task. This defaults to the current managed thread ID.
-
-		.EXAMPLE
-			Write-CCMLogFormat -Message "Test Warning Message" -FilePath "c:\logpath.log" -LogLevel 2 -Component "PowerShell"
-
-			This command writes "Test Warning Message" to c:\logpath.log and sets it as a Warning message in the CMTrace log viewer tool.
-
-		.INPUTS
-			System.String, System.String, System.Int32, System.String, System.Int32
-
-		.OUTPUTS
-			None
-		
-		.NOTES
-			AUTHOR: Michael Haken	
-			LAST UPDATE: 11/14/2016
-
-		.FUNCTIONALITY
-			The intended use of this cmdlet is to write CMTrace formatted log files to be used with the viewer tool.
-	#>
-
-	[CmdletBinding()]
-	Param(
-		[Parameter(Position=0,ValueFromPipeline=$true,Mandatory=$true)]
-		[string]$Message,
-		[Parameter(Position=1,Mandatory=$true)]
-		[string]$FilePath,
-		[Parameter(Position=2)]
-		[ValidateSet(1,2,3)]
-		[Int32]$LogLevel = 1,
-		[Parameter(Position=3)]
-		[string]$Component = [System.String]::Empty,
-		[Parameter(Position=4)]
-		[Int32]$Thread = 0
-	)
-
-	Begin {		
-	}
-
-	Process {
-		if ($Thread -eq 0) {
-			$Thread = [System.Threading.Thread]::CurrentThread.ManagedThreadId
-		}
-
-		$Date = Get-Date
-		$Time = ($Date.ToString("HH:mm:ss.fff") + "+" + ([System.TimeZone]::CurrentTimeZone.GetUtcOffset((Get-Date)).TotalMinutes * -1))
-		$Day = $Date.ToString("MM-dd-yyyy")
-
-		$File = $FilePath.Substring($FilePath.LastIndexOf("\") + 1)
-		[string]$Log = "<![LOG[" + $Message + "]LOG]!><time=`"$Time`" date=`"$Day`" component=`"$Component`" context=`"`" type=`"$LogLevel`" thread=`"$Thread`" file=`"$File`">`r`n"
-		Add-Content -Path $FilePath -Value $Log -Force
-	}
-
-	End {		
-	}
-}
-
-Function Get-IPv6ConfigurationOptions {
-	<#
-		.SYNOPSIS
-			Writes the HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters DisabledComponents key property possible options.
-
-		.DESCRIPTION
-			The Get-IPv6ConfigurationOptions cmdlet writes the HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters DisabledComponents key property possible options. This registry key entry determines which components of IPv6 are enabled or disabled.
-
-			The cmdlet writes the possible values to enter in this key entry.
-
-		.EXAMPLE
-			Get-IPv6ConfigurationOptions
-
-			This command returns the possible registry key settings as an array of PSCustomObjects.
-
-		.INPUTS
-			None
+				The input can be piped to Start-PortScan
 
 		.OUTPUTS
 			System.Management.Automation.PSCustomObject[]
-		
-		.NOTES
-			AUTHOR: Michael Haken	
-			LAST UPDATE: 2/28/2016
-	#>
-	[CmdletBinding()]
-	Param()
 
-	Begin {}
-
-	Process {
-		Write-Output -InputObject $script:IPv6Configs
-	}
-
-	End {}
-}
-
-Function Get-ProcessToken {
-	<#
-		.SYNOPSIS
-			Gets the token handle for a specified process.
-
-		.DESCRIPTION
-			The Get-ProcessToken cmdlet gets a token handle pointer for a specified process.
-			
-            The CmdLet must be run with elevated permissions.
-
-		.PARAMETER ProcessName
-			The name of the process to get a token handle for.
-
-		.PARAMETER ProcessId
-			The Id of the process to get a token handle for.
-
-		.PARAMETER CloseHandle
-			Specifies if the handle to the token should be closed. Do not close the handle if you want to duplicate the token in another process.		
+				Each custom object has a property of Service, Port, and Status. Status is either Open or Closed.
 
 		.EXAMPLE
-			Get-ProcessToken -ProcessName lsass
+			Start-PortScan -ComputerName remotecomputer.net
 
-			Gets the token handle for the lsass process.
-
-		.INPUTS
-			System.String, System.Int32
-
-		.OUTPUTS
-            System.IntPtr
+			Returns an array of open and closed ports on remotecomputer.net
 
 		.NOTES
 			AUTHOR: Michael Haken
-			LAST UPDATE: 3/25/2016
+			LAST UPDATE: 2/27/2016
+
+		.FUNCTIONALITY
+			The intended use of this cmdlet is to conduct a security scan of ports on a computer.
+
 	#>
-
 	[CmdletBinding()]
+	[OutputType([System.Management.Automation.PSCustomObject[]])]
 	Param(
-		[Parameter(Position=1)]
-		[switch]$CloseHandle
+		[Parameter(Position = 0, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true)]
+		[ValidateNotNullOrEmpty()]
+		[System.String]$ComputerName = "localhost"
 	)
-
-	DynamicParam {
-		# Create the dictionary 
-        $RuntimeParameterDictionary = New-Object -TypeName System.Management.Automation.RuntimeDefinedParameterDictionary
-
-		#region Name
-        # Create the collection of attributes
-        $AttributeCollection = New-Object -TypeName System.Collections.ObjectModel.Collection[System.Attribute]
-            
-        # Create and set the parameters' attributes
-        $ParameterAttribute = New-Object -TypeName System.Management.Automation.PARAMETERAttribute
-        $ParameterAttribute.Mandatory = $true
-        $ParameterAttribute.Position = 0
-		$ParameterAttribute.ParameterSetName ="Name"
-
-        # Add the attributes to the attributes collection
-        $AttributeCollection.Add($ParameterAttribute)
-
-		# Generate and set the ValidateSet 
-        $Set = Get-Process | Select-Object -ExpandProperty Name 
-        $ValidateSetAttribute = New-Object -TypeName System.Management.Automation.ValidateSetAttribute($Set)
-		$AttributeCollection.Add($ValidateSetAttribute)
-
-		#Add Alias
-		$AliasAttribute = New-Object -TypeName System.Management.Automation.AliasAttribute("Name")
-		$AttributeCollection.Add($AliasAttribute)
-
-		# Create and return the dynamic parameter
-		$RuntimeParameter = New-Object -TypeName System.Management.Automation.RuntimeDefinedParameter("ProcessName", [string], $AttributeCollection)
-        $RuntimeParameterDictionary.Add("ProcessName", $RuntimeParameter)
-        
-		#endregion
-
-		#region Id
-
-		# Create the collection of attributes
-        $AttributeCollection = New-Object -TypeName System.Collections.ObjectModel.Collection[System.Attribute]
-            
-        # Create and set the parameters' attributes
-        $ParameterAttribute = New-Object -TypeName System.Management.Automation.PARAMETERAttribute
-        $ParameterAttribute.Mandatory = $true
-        $ParameterAttribute.Position = 0
-		$ParameterAttribute.ParameterSetName ="Id"
-		
-        # Add the attributes to the attributes collection
-        $AttributeCollection.Add($ParameterAttribute)
-
-		# Generate and set the ValidateSet 
-        $Set = Get-Process | Select-Object -ExpandProperty Id 
-        $ValidateSetAttribute = New-Object -TypeName System.Management.Automation.ValidateSetAttribute($Set)
-		$AttributeCollection.Add($ValidateSetAttribute)
-
-		#Add Alias
-		$AliasAttribute = New-Object -TypeName System.Management.Automation.AliasAttribute("Id")
-		$AttributeCollection.Add($AliasAttribute)
-
-		# Create and return the dynamic parameter
-		$RuntimeParameter = New-Object -TypeName System.Management.Automation.RuntimeDefinedParameter("ProcessId", [Int32], $AttributeCollection)
-        $RuntimeParameterDictionary.Add("ProcessId", $RuntimeParameter)
-
-		#endregion
-		
-		return $RuntimeParameterDictionary
+	
+	Begin
+	{
+		$Ports = $script:Ports | Sort-Object -Property Port
 	}
 
-	Begin {
+	Process
+	{
+		$Jobs = @()
 
-		if (!([System.Security.Principal.WindowsPrincipal][System.Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)) {
-			throw "Run the cmdlet with elevated credentials."
-		}
-	}
+		$i = 1
 
-	Process {
+		foreach ($Item in $Ports)    
+		{
+			Write-Progress -Activity "Running Port Scan" -Status "Scanning Port $($Item.Port) $($Item.Service)" -PercentComplete (($i++ / $Ports.Count) * 100)
+		
+			$Jobs += Start-Job -ArgumentList @($ComputerName,$Item) -ScriptBlock {
+				$ComputerName = $args[0]
+				$Service = $args[1].Service
+				$Port = $args[1].Port
 
-        [IntPtr]$DulicateTokenHandle = [IntPtr]::Zero
-        [IntPtr]$ProcessTokenHandle = [IntPtr]::Zero
-        
-		if (!([System.Management.Automation.PSTypeName]"BAMCIS.PowerShell.SecurityToken").Type) {
-			Add-Type -TypeDefinition $script:TokenSignature
-		}
-
-        try {
-			switch ($PSCmdlet.ParameterSetName) {
-				"Name" {
-					$Process = Get-Process -Name $PSBoundParameters["ProcessName"]
-					break
+				$Socket = New-Object Net.Sockets.TcpClient
+				$ErrorActionPreference = 'SilentlyContinue'
+				$Socket.Connect($ComputerName, $Port)
+				$ErrorActionPreference = 'Continue' 
+		
+				if ($Socket.Connected) 
+				{
+					$Socket.Close()
+					return [PSCustomObject]@{"Service"="$Service";"Port"=$Port;"Status"="Open"}
 				}
-				"Id" {
-					$Process = Get-Process -Id $PSBoundParameters["ProcessId"]
-					break
-				}
-				default {
-					throw "Cannot determine parameter set."
+				else 
+				{
+					return [PSCustomObject]@{"Service"="$Service";"Port"=$Port;"Status"="Closed"}
 				}
 			}
+		}
 
-		    $ReturnValue = [BAMCIS.PowerShell.SecurityToken]::OpenProcessToken($Process.Handle, ([BAMCIS.PowerShell.SecurityToken]::TOKEN_IMPERSONATE -BOR [BAMCIS.PowerShell.SecurityToken]::TOKEN_DUPLICATE), [ref]$ProcessTokenHandle)
-		    $ReturnValue = [BAMCIS.PowerShell.SecurityToken]::DuplicateToken($ProcessTokenHandle, [BAMCIS.PowerShell.SecurityToken+SECURITY_IMPERSONATION_LEVEL]::SecurityImpersonation, [ref]$DulicateTokenHandle)
-		
-		    if($ReturnValue -eq $null -or $ReturnValue -eq $false) {
-			    throw (New-Object -TypeName System.Exception([System.ComponentModel.Win32Exception][System.Runtime.InteropServices.marshal]::GetLastWin32Error()))
-		    }
-        }
-        finally {
-            [BAMCIS.PowerShell.SecurityToken]::CloseHandle($ProcessTokenHandle) | Out-Null
+		Write-Progress -Completed -Activity "Running Port Scan"
 
-			if ($CloseHandle) {
-				[BAMCIS.PowerShell.SecurityToken]::CloseHandle($DulicateTokenHandle) | Out-Null
-			}
-        }
+		$RunningJobs = @()
 
-		Write-Output -InputObject $DulicateTokenHandle
+		$RunningJobs = Get-Job | Where-Object {$_.Id -in ($Jobs | Select-Object -ExpandProperty Id)}
+
+		while (($RunningJobs | Where {$_.State -eq "Running"}).Length -gt 0) {
+			$Completed = ($RunningJobs | Where {$_.State -eq "Completed"}).Length
+
+			Write-Progress -Activity "Completing Jobs" -Status ("Waiting for connections to complete: " + (($Completed / $RunningJobs.Length) * 100) + "% Complete") -PercentComplete (($Completed / $RunningJobs.Length) * 100)
+			Start-Sleep -Milliseconds 500
+		}
+
+		Write-Progress -Activity "Completing Jobs" -Completed
+
+		Wait-Job -Job $Jobs | Out-Null
+		$Data = @()
+		Receive-Job -Job $Jobs | ForEach-Object {
+			$Data += $_
+		}
+
+		Remove-Job -Job $Jobs
+
+		Write-Output -InputObject ($Data | Select-Object -Property * -ExcludeProperty RunspaceId)
 	}
 
-	End {		
-	}
-}
-
-Function Set-ProcessToken {
-	<#
-		.SYNOPSIS
-			Replaces the process token for the current process thread with a token from another process.
-
-		.DESCRIPTION
-			The Set-ProcessToken cmdlet takes a token handle from another process and then sets the process thread to use that token. Then it closes the token handle. 
-
-			The passed token handle must not be closed before it is passed.
-			
-            The CmdLet must be run with elevated permissions.
-
-		.PARAMETER TokenHandle
-			The Token Handle pointer that will replace the current process thread token.
-
-		.PARAMETER ElevatePrivileges
-			Adds the SeDebugPrivilege to the current process thread, which may be needed to replace the current process thread token.	
-
-		.EXAMPLE
-			Get-ProcessToken -ProcessName lsass | Set-ProcessToken 
-
-			Gets the token handle for the lsass process and replaces the current process thread token.
-
-		.INPUTS
-			System.IntPtr
-
-		.OUTPUTS
-            None
-
-		.NOTES
-			AUTHOR: Michael Haken
-			LAST UPDATE: 10/23/2017
-	#>
-	[CmdletBinding()]
-	Param(
-		[Parameter(Mandatory=$true,Position=0,ValueFromPipeline=$true)]
-		[IntPtr]$TokenHandle,
-		[Parameter(Position=1)]
-		[switch]$ElevatePrivileges
-	)
-
-	Begin {
-		if (!([System.Security.Principal.WindowsPrincipal][System.Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)) {
-			throw "Run the cmdlet with elevated credentials."
-		}
-	}
-
-	Process {
-		if (!([System.Management.Automation.PSTypeName]"BAMCIS.PowerShell.SecurityToken").Type) {
-			Add-Type -TypeDefinition $script:TokenSignature
-		}
-
-		if ($ElevatePrivileges) {
-			Set-SecurityPrivilege -Privileges SeDebugPrivilege -Enable
-		}
-
-		try {
-			$ReturnValue = [BAMCIS.PowerShell.SecurityToken]::SetThreadToken([IntPtr]::Zero, $TokenHandle)
-
-			if($ReturnValue -eq $null -or $ReturnValue -eq $false) {
-			    throw (New-Object -TypeName System.Exception([System.ComponentModel.Win32Exception][System.Runtime.InteropServices.Marshal]::GetLastWin32Error()))
-		    }
-		}
-		finally {
-			[BAMCIS.PowerShell.SecurityToken]::CloseHandle($TokenHandle) | Out-Null
-		}
-
-		Write-Host "Successfully duplicated token to current process thread." -ForegroundColor Green
-	}
-
-	End {		
-	}
-}
-
-Function Reset-ProcessToken {
-	<#
-		.SYNOPSIS
-			Reverts to the process thread token to the current user.
-
-		.DESCRIPTION
-			The Reset-ProcessToken cmdlet needs to be called to end any process impersonation called through DdeImpersonateClient, ImpersonateDdeClientWindow, ImpersonateLoggedOnUser, ImpersonateNamedPipeClient, ImpersonateSelf, ImpersonateAnonymousToken or SetThreadToken.
-			
-			Underlying the cmdlet is a P/Invoke call to RevertToSelf() in AdvApi32.dll.
-
-            The CmdLet must be run with elevated permissions.
-
-		.EXAMPLE
-			Reset-ProcessToken
-
-			Reverts the process thread to use the token of the current user.
-
-		.INPUTS
-			None
-
-		.OUTPUTS
-            None
-
-		.NOTES
-			AUTHOR: Michael Haken
-			LAST UPDATE: 3/25/2016
-	#>
-
-	[CmdletBinding()]
-	Param()
-
-	Begin {
-		if (!([System.Security.Principal.WindowsPrincipal][System.Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)) {
-			throw "Run the cmdlet with elevated credentials."
-		}
-	}
-
-	Process {
-		if (!([System.Management.Automation.PSTypeName]"BAMCIS.PowerShell.SecurityToken").Type) {
-			Add-Type -TypeDefinition $script:TokenSignature
-		}
-
-		#RevertToSelf is equivalent to SetThreadToken([System.IntPtr]::Zero, [System.IntPtr]::Zero)
-		$ReturnValue = [BAMCIS.PowerShell.SecurityToken]::RevertToSelf()
-
-		if($ReturnValue -eq $null -or $ReturnValue -eq $false) {
-			throw (New-Object -TypeName System.Exception([System.ComponentModel.Win32Exception][System.Runtime.InteropServices.Marshal]::GetLastWin32Error()))
-		}
-
-		Write-Host "Successfully executed RevertToSelf() and reset the process thread token."
-	}
-
-	End {		
+	End
+	{	
 	}
 }
 
@@ -2226,14 +2819,15 @@ Function Get-LsaSecret {
 
 		.NOTES
 			AUTHOR: Michael Haken
-			LAST UPDATE: 3/27/2016
+			LAST UPDATE: 10/23/2017
 	#>
 
 	[CmdletBinding()]
+	[OutputType()]
 	Param()
 
 	Begin {
-		if (!([System.Management.Automation.PSTypeName]"Bamcis.Lsa.LSAUtil").Type) {
+		if (!([System.Management.Automation.PSTypeName]"BAMCIS.PowerShell.LSAUtil").Type) {
 			Add-Type -TypeDefinition $script:LsaSignature
 		}
 	}
@@ -2272,7 +2866,7 @@ Function Get-LsaSecret {
 				Set-ItemProperty -Path "$Destination\$ItemName" -Name '(Default)' -Value $Property
 			}
 
-			$LsaUtil = New-Object -TypeName Bamcis.Lsa.LSAUtil -ArgumentList @($TempKey)
+			$LsaUtil = New-Object -TypeName BAMCIS.PowerShell.LSAUtil -ArgumentList @($TempKey)
 
 			try {
 				$Value = $LsaUtil.GetSecret()
@@ -2323,10 +2917,789 @@ Function Get-LsaSecret {
 	}
 }
 
+Function Test-Port {
+	<#
+		.SYNOPSIS
+			Tests if a TCP or UDP is listening on a computer.
+
+		.DESCRIPTION
+			The Test-Port cmdlet tests for the availability of a TCP or UDP port on a local or remote server.
+
+		.EXAMPLE
+			Test-Port -Port 443 -ComputerName RemoteServer.test.local -TCP
+
+			Tests for the availability of port 443 via TCP on RemoteServer.test.local
+
+		.PARAMETER Port
+			The port number to test. This must be between 1 and 65535.
+
+		.PARAMETER ComputerName
+			The IP or DNS name of the computer to test. This defaults to "localhost".
+
+		.PARAMETER ReceiveTimeout
+			The timeout in milliseconds to wait for a response. This defaults to 1000.
+
+		.PARAMETER Tcp
+			Indicates that TCP should be used. This is the default
+
+		.PARAMETER Udp
+			Indicates that UDP should be used.
+
+		.INPUTS
+			None
+
+		.OUTPUTS
+			System.Boolean
+
+		.NOTES
+			AUTHOR: Michael Haken
+			LAST UPDATE: 1/10/2017
+	#>
+    [CmdletBinding(DefaultParameterSetName = "tcp")]
+	[OutputType([System.Boolean])]
+    Param(
+        [Parameter(Position = 0, Mandatory = $true)]
+		[ValidateRange(1, 65535)]
+        [System.Int32]$Port,
+
+        [Parameter(Position = 1)]
+		[ValidateNotNullOrEmpty()]
+        [System.String]$ComputerName = "localhost",
+
+        [Parameter(Position = 2)]
+        [System.Int32]$ReceiveTimeout = 1000,
+
+        [Parameter(ParameterSetName="tcp")]
+        [Switch]$Tcp,
+
+        [Parameter(ParameterSetName="udp")]
+        [Switch]$Udp
+    )
+
+    Begin {     
+    }
+
+    Process {
+		$Success = $false
+
+        if ($PSCmdlet.ParameterSetName -eq "tcp") 
+		{
+            [System.Net.Sockets.TcpClient]$TcpObj = New-Object -TypeName System.Net.Sockets.TcpClient
+            Write-Log -Message "Beginning tcp connection to $ComputerName." -Level VERBOSE
+
+			try
+			{
+				$Connection = $TcpObj.BeginConnect($ComputerName, $Port, $null, $null)
+				$Wait = $Connection.AsyncWaitHandle.WaitOne($ReceiveTimeout, $false)
+
+				if ($Wait -ne $null) 
+				{
+					$Error.Clear()
+					Write-Log -Message "Ending connection." -Level VERBOSE
+
+					try
+					{
+						$TcpObj.EndConnect($Connection) | Out-Null
+
+						if ($Error[0] -ne $null) 
+						{
+							Write-Log -Message ($Error[0].Exception.Message) -Level VERBOSE
+						}
+						else 
+						{
+							Write-Log -Message "Connection successful." -Level VERBOSE
+							$Success = $true
+						}
+					}
+					catch [Exception]
+					{
+						Write-Log -Level VERBOSE -ErrorRecord $_
+					}
+				}
+				else 
+				{
+					Write-Log -Message "Connection timeout." -Level VERBOSE
+				}
+			}
+			finally
+			{
+				Write-Log -Message "Closing TCP connection." -Level VERBOSE
+				$TcpObj.Close()
+			}
+        }		
+		else 
+		{
+            [System.Net.Sockets.UdpClient]$UdpObj = New-Object -TypeName System.Net.Sockets.UdpClient
+            $UdpObj.Client.ReceiveTimeout = $ReceiveTimeout
+            Write-Log -Message "Connected to $ComputerName." -Level VERBOSE
+
+            $UdpObj.Connect($ComputerName, $Port)
+            $TestData = New-Object System.Text.ASCIIEncoding
+            $Bytes = $TestData.GetBytes("$(Get-Date)")
+            Write-Log -Message "Sending data." -Level VERBOSE
+
+            [void]$UdpObj.Send($Bytes, $Bytes.Length)
+            Write-Log -Message "Creating remote endpoint." -Level VERBOSE
+            $RemoteEndpoint = New-Object System.Net.IPEndPoint([System.Net.IPAddress]::Any, 0)
+
+            try 
+			{
+                Write-Log -Message "Waiting for message return" -Level VERBOSE
+                $ReceivedBytes = $UdpObj.Receive([ref]$RemoteEndpoint)
+                [string]$ReturnData = $TestData.GetString($ReceivedBytes)
+
+                if (![System.String]::IsNullOrEmpty($ReturnData)) 
+				{
+                    Write-Log -Message "Connection successful" -Level VERBOSE
+                    $Success = $true
+                }
+            }
+            catch [Exception] 
+			{
+                if ($_.Exception.Message -match "\brespond after a period of time\b") 
+				{
+                    Write-Log -Message "Testing ICMP connection for false positive." -Level VERBOSE
+                    if (Test-Connection -ComputerName $ComputerName -Count 1 -Quiet) 
+					{
+                        Write-Log -Message "Connection successful." -Level VERBOSE
+                        $Success = $true
+                    }        
+                }
+                else 
+				{
+                    Write-Log -ErrorRecord $_ -Level VERBOSE
+                }
+            }
+            finally 
+			{
+                $UdpObj.Close()
+            } 
+        }
+		
+		Write-Output -InputObject $Success                
+    }
+
+    End {
+    }
+}
+
+Function Get-WebHistory {
+	<#
+		.SYNOPSIS
+			Reads the Internet Explorer web history of a user from the WebCacheV01.dat file.
+
+		.DESCRIPTION
+			The Get-WebHistory cmdlet is a forensic tools that reads the actual web history of a given user. It uses the ESE database functions to read the WebCacheV01.dat file. This works in IE10+.
+
+			It is recommended that you use a copy of the database and logs so that the original database is not modified.
+
+		.EXAMPLE
+			Get-WebHistory
+
+			Gets the web history of all users on the local computer.
+
+		.PARAMETER UserName
+			The user name to get the web history for. This defaults to all users.
+
+		.INPUTS
+			System.String
+
+		.OUTPUTS
+			System.Management.Automation.PSObject[]
+
+			The array of objects contain Url, AccessedTime, and UserName information
+
+		.NOTES
+			AUTHOR: Michael Haken
+			LAST UPDATE: 4/25/2016
+	#>
+	[CmdletBinding()]
+	[OutputType([System.Management.Automation.PSObject[]])]
+	Param(
+		[Parameter(Position = 0, ValueFromPipeline = $true)]
+		[ValidateNotNullOrEmpty()]
+		[System.String]$UserName = [System.String]::Empty
+	)
+
+	Begin {
+		$Verbose = $PSBoundParameters.ContainsKey("Verbose").IsPresent
+	}
+
+	Process {
+		$Data = @()
+
+		$Profiles = Get-UserProfiles
+		if (![System.String]::IsNullOrEmpty($UserName)) {
+			$Profiles = $Profiles | Where-Object {$_ -like "*$UserName*"}
+		}
+
+		foreach ($Profile in $Profiles) {			
+			$Parts = $Profile.Split("\")
+			$CurrentUser = $Parts[$Parts.Length - 1]
+			$Path = Join-Path -Path $Profile -ChildPath "AppData\Local\Microsoft\Windows\WebCache"
+			$Destination = "$env:USERPROFILE\AppData\Local\Temp"
+
+			Write-Log -Message "Processing user $CurrentUser at path $Path" -Level VERBOSE
+
+			if ((Test-Path -Path $Path) -and (Test-Path -Path "$Path\WebCacheV01.dat")) {
+				Stop-Process -Name dllhost -Force -ErrorAction SilentlyContinue
+				Stop-Process -Name taskhostw -Force -ErrorAction SilentlyContinue
+
+				Write-Log -Message "Copying WebCache folder." -Level VERBOSE 
+
+				Copy-Item -Path $Path -Destination $Destination -Recurse -Force
+
+				Write-Log -Message "Finished copy." -Level VERBOSE
+
+				$DB = $null
+				$DB = Get-ESEDatabase -Path "$Destination\WebCache\WebCacheV01.dat" -LogPrefix "V01" -ProcessesToStop @("dllhost","taskhostw") -Recovery $false -CircularLogging $true -Force
+				Remove-Item -Path "$Destination\WebCache" -Force -Recurse
+				foreach ($Table in $DB) {
+					if ($Table.Rows.Count -gt 0 -and (Get-Member -InputObject $Table.Rows[0] -Name "Url" -MemberType Properties) -ne $null) {
+						$Data += ($Table.Rows | Select-Object -Property AccessedTime,Url,@{Name="UserName";Expression = {$CurrentUser}})
+					}
+				}
+			}
+		}
+
+		Write-Output -InputObject $Data
+	}
+
+	End {
+	}
+}
+
+Function Test-Credentials {
+	<#
+		.SYNOPSIS
+			Validates a set of credentials.
+
+		.DESCRIPTION
+			This cmdlet takes a set of credentials and validates them against Active Directory.
+
+		.PARAMETER EncryptedPassword
+			An encrypted string representing the password. This string should be encrypted using the ConvertFrom-SecureString cmdlet under the current user's context.
+
+		.PARAMETER UserName
+			The name of the user account. This can be specified as either DOMAIN\UserName or just as UserName and the domain will default to the current user domain.
+
+		.PARAMETER Password
+			An unencrypted string.
+
+		.PARAMETER Credential
+			A PSCredential object of the credentials to validate.
+
+		.INPUTS
+			None
+
+		.OUTPUTS
+			System.Boolean
+
+        .EXAMPLE
+			Test-Credentials -UserName administrator -Password MyP@$$w0rD
+
+			Validates the provided credentials using the current user domain.
+
+		.NOTES
+			AUTHOR: Michael Haken
+			LAST UPDATE: 8/24/2016
+	#>
+	[CmdletBinding(DefaultParameterSetName="Encrypted")]
+	[OutputType([System.Boolean])]
+	Param(
+		[Parameter(Mandatory = $true, ParameterSetName = "Encrypted")]
+		[ValidateNotNullOrEmpty()]
+		[System.String]$EncryptedPassword,
+
+		[Parameter(Mandatory = $true, ParameterSetName = "Secure")]
+		[ValidateNotNull()]
+		[System.Security.SecureString]$Password,
+
+		[Parameter(Mandatory = $true, ParameterSetName = "Encrypted")]
+		[Parameter(Mandatory = $true, ParameterSetName = "Secure")]
+		[ValidateNotNullOrEmpty()]
+		[System.String]$UserName,
+
+		[Parameter(Mandatory = $true, ParameterSetName = "Credential")]
+		[ValidateNotNull()]
+		[System.Management.Automation.Credential()]
+		[System.Management.Automation.PSCredential]$Credential = [System.Management.Automation.PSCredential]::Empty
+	)
+
+	Begin {		
+	}
+
+	Process {
+		$Result = $false
+
+		switch ($PSCmdlet.ParameterSetName) {
+			"Encrypted" {
+				$PlainTextPassword = Convert-SecureStringToString -SecureString (ConvertTo-SecureString -String $EncryptedPassword)
+				break
+			}
+			"Secure" {
+				$PlainTextPassword = Convert-SecureStringToString -SecureString $Password
+				break
+			}
+			"Credential" {
+				$UserName = $Credential.UserName
+				$PlainTextPassword = Convert-SecureStringToString -SecureString $Credential.Password
+				break
+			}		
+		}
+
+		if($UserName.Contains("\")) {
+            $Parts= $UserName.Split("\")
+            $Domain = $Parts[0]
+            $UserName= $Parts[1]
+        }
+        else {
+            $Domain = $env:USERDOMAIN
+        }
+
+		Write-Log -Message "Testing credentials for user $UserName in domain $Domain." -Level VERBOSE
+		[System.Reflection.Assembly]::LoadWithPartialName("System.DirectoryServices.AccountManagement") | Out-Null
+
+		[System.DirectoryServices.AccountManagement.PrincipalContext]$Context = New-Object -TypeName System.DirectoryServices.AccountManagement.PrincipalContext([System.DirectoryServices.AccountManagement.ContextType]::Domain, $Domain)
+
+		try 
+		{			
+			$Result = $Context.ValidateCredentials($UserName, $PlainTextPassword)			
+			Write-Log -Message "Provided credentials are valid : $Result" -Level VERBOSE
+		}
+		catch [Exception] 
+		{
+			Write-Log -Message "Error checking credentials."-Level WARNING
+			Write-Log -ErrorRecord $_ -Level WARNING
+		}
+		finally 
+		{
+			$Context.Dispose()
+		}
+
+		Write-Output -InputObject $Result
+    }
+
+	End {
+		
+	}
+}
+
+Function Set-UAC {
+	<#
+		.SYNOPSIS
+			Sets the User Account Control to enabled or disabled.
+
+		.DESCRIPTION
+			This cmdlet sets the User Account Control to enabled or disabled.
+
+		.PARAMETER Enabled
+			Specify whether UAC should be enabled or disabled.
+
+		.INPUTS
+			Systyem.Boolean
+
+		.OUTPUTS
+			None
+
+        .EXAMPLE
+			Set-UAC -Enabled $false
+
+			Disables UAC.
+
+		.NOTES
+			AUTHOR: Michael Haken
+			LAST UPDATE: 8/24/2016
+	#>
+	[CmdletBinding()]
+	[OutputType()]
+	Param(
+		[Parameter(Mandatory = $true, ValueFromPipeline = $true, Position = 0)]
+		[System.Boolean]$Enabled
+	)
+    
+	Begin {		
+	}
+
+	Process {
+		Write-Log -Message "Setting User Account Control to Enabled = $Enabled." -Level VERBOSE
+        New-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name EnableLUA -Value ([Int32]$Enabled) -ErrorAction SilentlyContinue | Out-Null
+	}
+
+	End {
+	}
+}
+
+Function Set-IEESC {
+	<#
+		.SYNOPSIS
+			Sets Internet Explorer Enhanced Security Configuration to enabled or disabled.
+
+		.DESCRIPTION
+			This cmdlet sets Internet Explorer Enhanced Security Configuration to enabled or disabled.
+
+		.PARAMETER Enabled
+			Specify whether IEESC should be enabled or disabled.
+
+		.INPUTS
+			Systyem.Boolean
+
+		.OUTPUTS
+			None
+
+        .EXAMPLE
+			Set-IEESC -Enabled $false
+
+			Disables IEESC.
+
+		.NOTES
+			AUTHOR: Michael Haken
+			LAST UPDATE: 8/24/2016
+	#>
+	[CmdletBinding()]
+	[OutputType()]
+	Param(
+		[Parameter(Mandatory = $true)]
+		[System.Boolean]$Enabled
+	)
+
+	Begin {
+	}
+
+	Process {
+        Write-Log "Setting IE Enhanced Security Configuration to Enabled = $Enabled." -Level VERBOSE
+
+        $AdminKey = "HKLM:\SOFTWARE\Microsoft\Active Setup\Installed Components\{A509B1A7-37EF-4b3f-8CFC-4F3A74704073}"
+        $UserKey = "HKLM:\SOFTWARE\Microsoft\Active Setup\Installed Components\{A509B1A8-37EF-4b3f-8CFC-4F3A74704073}"
+
+        Set-ItemProperty -Path $AdminKey -Name "IsInstalled" -Value ([System.Int32]$Enabled)
+        Set-ItemProperty -Path $UserKey -Name "IsInstalled" -Value ([System.Int32]$Enabled)
+	}
+
+	End {
+	}
+}
+
+Function Set-OpenFileSecurityWarning {
+	<#
+		.SYNOPSIS
+			Enables or disables file security warnings from items downloaded from the internet.
+
+		.DESCRIPTION
+			This cmdlet enables or disables file security warnings from items downloaded from the internet.
+
+		.PARAMETER Enable
+			Specify to enable the security warnings.
+
+		.PARAMETER Disable
+			Specify to disable the security warnings.
+
+		.INPUTS
+			None
+
+		.OUTPUTS
+			None
+
+        .EXAMPLE
+			Set-OpenFileSecurityWarning -Disable
+
+			Disables the security warning when opening files from the internet.
+
+		.NOTES
+			AUTHOR: Michael Haken
+			LAST UPDATE: 8/24/2016
+	#>
+	[CmdletBinding()]
+	[OutputType()]
+	Param(
+		[Parameter(Mandatory = $true, ParameterSetName = "Enable")]
+		[Switch]$Enable,
+
+		[Parameter(Mandatory = $true, ParameterSetName = "Disable")]
+		[Switch]$Disable	
+	)
+
+	Begin {
+	}
+
+	Process {
+		if ($Enable) {
+			Write-Log -Message "Enabling File Security Warning dialog." -Level VERBOSE
+
+			Remove-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Associations" -Name "LowRiskFileTypes" -ErrorAction SilentlyContinue
+			Remove-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Attachments" -Name "SaveZoneInformation" -ErrorAction SilentlyContinue
+			Remove-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\Associations" -Name "LowRiskFileTypes" -ErrorAction SilentlyContinue
+			Remove-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\Attachments" -Name "SaveZoneInformation" -ErrorAction SilentlyContinue
+		}
+		elseif ($Disable) {
+			Write-Log -Message "Disabling File Security Warning dialog." -Level VERBOSE
+
+			New-Item -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Associations" -ErrorAction SilentlyContinue | Out-Null
+			New-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Associations" -Name "LowRiskFileTypes" -Value ".exe;.msp;.msu;.msi" -ErrorAction SilentlyContinue | Out-Null
+			New-Item -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Attachments" -ErrorAction SilentlyContinue | Out-Null
+			New-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Attachments" -Name "SaveZoneInformation" -Value 1 -ErrorAction SilentlyContinue | Out-Null
+			Remove-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\Associations" -Name "LowRiskFileTypes" -ErrorAction SilentlyContinue
+			Remove-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\Attachments" -Name "SaveZoneInformation" -ErrorAction SilentlyContinue
+		}
+	}
+
+	End {
+	}
+}
+
+Function New-RandomPassword {
+	<#
+		.SYNOPSIS
+			The cmdlet generates a random string.
+
+		.DESCRIPTION
+			The cmdlet generates a random string with a specific length and complexity settings.
+
+		.PARAMETER Length
+			The length of the returned string, this defaults to 14.
+
+		.PARAMETER SourceData
+			The range of characters that can be used to generate the string. This defaults to 
+
+			for ($a=33; $a -le 126; $a++) {
+				$SourceData += ,[char][byte]$a 
+			}  
+
+			which contains upper, lower, number, and special characters.
+
+		.PARAMETER EnforceComplexity
+			Specify to ensure the produced string has at least 2 upper, 2 lower, 2 number, and 2 special characters.
+
+		.PARAMETER AsSecureString
+			Specify to return the result as a secure string instead of a standard string.
+
+		.INPUTS
+			System.Int32
+		
+		.OUTPUTS
+			System.String
+
+			System.Security.SecureString
+
+		.EXAMPLE 
+			$Pass = New-RandomPassword
+
+			Generates a new random password.
+
+		.NOTES
+			None
+	#>
+    [CmdletBinding()]
+	[OutputType([System.String], [System.Security.SecureString])]
+    Param(
+        [Parameter(Position=0,ValueFromPipeline=$true)]
+		[ValidateRange(1, [System.Int32]::MaxValue)]
+        [System.Int32]$Length=14,
+
+        [Parameter(Position = 1)]
+		[ValidateNotNull()]
+        $SourceData = $null,
+
+        [Parameter()]
+        [Switch]$EnforceComplexity,
+
+		[Parameter()]
+		[Switch]$AsSecureString
+    )
+
+	Begin {		
+	}
+
+    Process {
+		$Password = [System.String]::Empty
+
+		if ($SourceData -eq $null) {        
+			for ($a=33; $a -le 126; $a++) {
+				$SourceData += ,[char][byte]$a 
+			}          
+		}
+
+		if ($EnforceComplexity) {
+			if ($Length -lt 14) {
+				$Length = 14
+			}
+		}
+
+		if ($EnforceComplexity) {
+			$Upper = 0
+			$Lower = 0
+			$Special = 0
+			$Number = 0
+
+			while ($Upper -lt 2 -or $Lower -lt 2 -or $Special -lt 2 -or $Number -lt 2) {
+				$Upper = 0
+				$Lower = 0
+				$Special = 0
+				$Number = 0
+
+				$Password = ""
+
+				for ($i=1; $i –le $Length; $i++) {
+					$Password += ($SourceData | Get-Random)
+				}
+
+				for ($i = 0; $i -lt $Password.Length; $i++) {
+					if ([System.Char]::IsUpper($Password[$i])) {
+						$Upper++
+					}
+					if ([System.Char]::IsLower($Password[$i])) {
+						$Lower++
+					}
+					if ([System.Char]::IsSymbol($Password[$i])) {
+						$Special++
+					}
+					if ([System.Char]::IsNumber($Password[$i])) {
+						$Number++
+					}
+				}
+			}
+		}
+		else {
+			for ($i=1; $i –le $Length; $i++) {
+				$Password += ($SourceData | Get-Random)
+			}
+		}
+
+		if ($AsSecureString) {
+			Write-Output -InputObject (ConvertTo-SecureString -String $Password -AsPlainText -Force)
+		}
+		else {
+			Write-Output -InputObject $Password
+		}
+	}
+
+	End {		  		
+	}
+}
+
+Function New-EncryptedPassword {
+	<#
+		.SYNOPSIS
+			The cmdlet creates a password encrypted with the calling user's credentials.
+
+		.DESCRIPTION
+			The cmdlet creates a password encrypted with the calling user's credentials via the Windows Data Protection API (DPAPI).
+
+		.PARAMETER Password
+			The plain text password to encrypt.
+
+		.PARAMETER SecurePassword
+			The secure string password to encrypt.
+
+		.INPUTS
+			System.String
+
+			System.Security.SecureString
+		
+		.OUTPUTS
+			System.String
+
+		.EXAMPLE 
+			New-EncryptedPassword -Password "MySecurePassword"
+
+			Encrypts the password with the calling user's credentials.
+
+		.NOTES
+			None
+	#>
+    [CmdletBinding(DefaultParameterSetName = "SecureString")]
+	[OutputType([System.String])]
+    Param(
+        [Parameter(Position = 0, ValueFromPipeline = $true, Mandatory = $true, ParameterSetName = "PlainText")]
+		[ValidateNotNullOrEmpty()]
+        [System.String]$Password,
+
+        [Parameter(Position = 0, ValueFromPipeline = $true, Mandatory = $true, ParameterSetName = "SecureString")]
+		[ValidateNotNull()]
+        [System.Security.SecureString]$SecurePassword
+    )
+
+    Begin {        
+    }
+
+    Process {
+		switch ($PSCmdlet.ParameterSetName) {
+            "PlainText" {
+                [SecureString]$SecurePass = ConvertTo-SecureString -String $Password -AsPlainText -Force
+                break
+            }
+            "SecureString" {
+                [SecureString]$SecurePass = $SecurePassword
+				break
+            }
+            default {
+                throw "Could not determine parameter set for Save-EncryptedPassword."
+            }
+        }
+
+        Write-Output -InputObject (ConvertFrom-SecureString -SecureString $SecurePass)
+    }
+
+    End {}
+}
+
+Function Get-EncryptedPassword {
+	<#
+		.SYNOPSIS
+			The cmdlet unencrypts an encrypted string stored in a file.
+
+		.DESCRIPTION
+			The cmdlet unencrypts a string stored in a file using the calling user's credentials via the Windows Data Protection API (DPAPI).
+
+		.PARAMETER FilePath
+			The path to the file with the encrypted password.
+
+		.INPUTS
+			System.String
+		
+		.OUTPUTS
+			System.Security.SecureString
+
+		.EXAMPLE 
+			Get-EncryptedPassword -FilePath "c:\password.txt"
+
+			Unencrypts the password stored in the file with the calling user's credentials.
+
+		.NOTES
+			None
+	#>
+	[CmdletBinding()]
+	[OutputType([System.Security.SecureString])]
+    Param(
+        [Parameter(Position = 0, ValueFromPipeline = $true, Mandatory = $true)]
+		[ValidateScript({
+			Test-Path -Path $_
+		})]
+        [System.String]$FilePath
+    )
+
+    Begin {        
+    }
+
+    Process {
+        [System.Security.SecureString]$Password = Get-Content -Path $FilePath | ConvertTo-SecureString
+
+		Write-Output -InputObject $Password
+    }
+
+    End {       
+    }
+}
+
+#endregion
+
+
+#region Converters
+
 Function ConvertFrom-Xml {
 	<#
 		.SYNOPSIS
-			Converts an Xml object to as PSObject.
+			Converts an Xml object to a PSObject.
 
 		.DESCRIPTION
 			The ConvertFrom-Xml recursively goes through an Xml object and enumerates the properties of each inputted element. Those properties are accessed and added to the returned object.
@@ -2352,9 +3725,12 @@ Function ConvertFrom-Xml {
 			LAST UPDATE: 3/31/2015
 	#>
     [CmdletBinding()]
+	[OutputType([System.Management.Automation.PSObject])]
     Param(
-        [Parameter(Position=0,ValueFromPipeline=$true,Mandatory=$true)]
-        [ValidateScript({$_.GetType().Namespace -eq "System.Xml"})]
+        [Parameter(Position = 0, ValueFromPipeline = $true, Mandatory = $true)]
+        [ValidateScript({
+			$_.GetType().Namespace -eq "System.Xml"
+		})]
         $InputObject
     )
 
@@ -2459,123 +3835,6 @@ Function ConvertFrom-Xml {
     }
 }
 
-Function Get-WebHistory {
-	<#
-		.SYNOPSIS
-			Reads the Internet Explorer web history of a user from the WebCacheV01.dat file.
-
-		.DESCRIPTION
-			The Get-WebHistory cmdlet is a forensic tools that reads the actual web history of a given user. It uses the ESE database functions to read the WebCacheV01.dat file. This works in IE10+.
-
-			It is recommended that you use a copy of the database and logs so that the original database is not modified.
-
-		.EXAMPLE
-			Get-WebHistory
-
-			Gets the web history of all users on the local computer.
-
-		.PARAMETER UserName
-			The user name to get the web history for. This defaults to all users.
-
-		.INPUTS
-			System.String
-
-		.OUTPUTS
-			System.Management.Automation.PSObject[]
-
-			The array of objects contain Url, AccessedTime, and UserName information
-
-		.NOTES
-			AUTHOR: Michael Haken
-			LAST UPDATE: 4/25/2016
-	#>
-	[CmdletBinding()]
-	Param(
-		[Parameter(Position=0,ValueFromPipeline=$true)]
-		$UserName = [System.String]::Empty
-	)
-
-	Begin {
-		$Verbose = $PSBoundParameters.ContainsKey("Verbose").IsPresent
-	}
-
-	Process {
-		$Data = @()
-
-		$Profiles = Get-UserProfiles
-		if (![System.String]::IsNullOrEmpty($UserName)) {
-			$Profiles = $Profiles | Where-Object {$_ -like "*$UserName*"}
-		}
-
-		foreach ($Profile in $Profiles) {			
-			$Parts = $Profile.Split("\")
-			$CurrentUser = $Parts[$Parts.Length - 1]
-			$Path = Join-Path -Path $Profile -ChildPath "AppData\Local\Microsoft\Windows\WebCache"
-			$Destination = "$env:USERPROFILE\AppData\Local\Temp"
-
-			Write-Verbose -Message "Processing user $CurrentUser at path $Path"
-
-			if ((Test-Path -Path $Path) -and (Test-Path -Path "$Path\WebCacheV01.dat")) {
-				Stop-Process -Name dllhost -Force -ErrorAction SilentlyContinue
-				Stop-Process -Name taskhostw -Force -ErrorAction SilentlyContinue
-				Write-Verbose -Message "Copying WebCache folder."
-				Copy-Item -Path $Path -Destination $Destination -Recurse -Force
-				Write-Verbose -Message "Finished copy."
-				$DB = $null
-				$DB = Get-ESEDatabase -Path "$Destination\WebCache\WebCacheV01.dat" -LogPrefix "V01" -ProcessesToStop @("dllhost","taskhostw") -Recovery $false -CircularLogging $true -Force
-				Remove-Item -Path "$Destination\WebCache" -Force -Recurse
-				foreach ($Table in $DB) {
-					if ($Table.Rows.Count -gt 0 -and (Get-Member -InputObject $Table.Rows[0] -Name "Url" -MemberType Properties) -ne $null) {
-						$Data += ($Table.Rows | Select-Object -Property AccessedTime,Url,@{Name="UserName";Expression = {$CurrentUser}})
-					}
-				}
-			}
-		}
-
-		Write-Output -InputObject $Data
-	}
-
-	End {
-	}
-}
-
-Function Get-UserProfiles {
-	<#
-		.SYNOPSIS
-			Gets all of the user profiles on the system.
-
-		.DESCRIPTION
-			The Get-UserProfiles cmdlet uses the Win32_UserProfile WMI class to get user profile paths. It ignores special profiles like the local system.
-
-		.EXAMPLE
-			Get-UserProfiles
-
-			Gets all of the user profiles on the system as an array of path strings.
-
-		.INPUTS
-			None
-
-		.OUTPUTS
-			System.String[]
-
-		.NOTES
-			AUTHOR: Michael Haken
-			LAST UPDATE: 4/25/2016
-	#>
-	[CmdletBinding()]
-	Param(
-	)
-
-	Begin {}
-
-	Process {
-		Write-Output -InputObject (Get-WmiObject -Class Win32_UserProfile | Where-Object {$_.Special -eq $false} | Select-Object -ExpandProperty LocalPath)
-	}
-
-	End {		
-	}
-}
-
 Function ConvertTo-HtmlTable {
 	<#
 		.SYNOPSIS
@@ -2613,18 +3872,22 @@ Function ConvertTo-HtmlTable {
 			LAST UPDATE: 1/15/2017
 	#>
 	[CmdletBinding()]
+	[OutputType([System.String])]
     Param(
         [Parameter(Mandatory = $true, ParameterSetName= "Csv", Position = 0)]
 		[ValidateScript({Test-Path -Path $_})]
         [System.String]$CsvPath,
 
         [Parameter()]
+		[ValidateNotNullOrEmpty()]
         [System.String]$Title = [System.String]::Empty,
 
         [Parameter(Position = 1)]
+		[ValidateNotNullOrEmpty()]
         [System.String]$Destination = [System.String]::Empty,
 
         [Parameter(ParameterSetName="Csv")]
+		[ValidateNotNull()]
         [System.String[]]$IgnoreHeaders = @()
     )
 
@@ -2640,7 +3903,7 @@ Function ConvertTo-HtmlTable {
 				}
 				else {
 					$Headers = @()
-					Write-Verbose -Message "No content in the CSV."
+					Write-Log -Message "No content in the CSV." -Level VERBOSE
 				}
             }
             default {
@@ -2713,197 +3976,236 @@ Function ConvertTo-HtmlTable {
     }
 }
 
-Function Test-Port {
+Function Merge-Hashtables {
 	<#
-		.SYNOPSIS
-			Tests if a TCP or UDP is listening on a computer.
+		.SYNOPSIS 
+			Merges two hashtables.
 
 		.DESCRIPTION
-			The Test-Port cmdlet tests for the availability of a TCP or UDP port on a local or remote server.
+			The cmdlet merges a second hashtable with a source one. The second hashtable will add or overwrite its values to a copy of the first. Neither of the two input hashtables are modified.
+
+		.PARAMETER Source
+			The source hashtable that will be added to or overwritten. The original hashtable is not modified.
+
+		.PARAMETER Update
+			The hashtable that will be merged into the source. This hashtable is not modified.
 
 		.EXAMPLE
-			Test-Port -Port 443 -ComputerName RemoteServer.test.local -TCP
+			Merge-Hashtables -Source @{"Key" = "Test"} -Data @{"Key" = "Test2"; "Key2" = "Test3"}
 
-			Tests for the availability of port 443 via TCP on RemoteServer.test.local
-
-		.PARAMETER Port
-			The port number to test. This must be between 1 and 65535.
-
-		.PARAMETER ComputerName
-			The IP or DNS name of the computer to test. This defaults to "localhost".
-
-		.PARAMETER ReceiveTimeout
-			The timeout in milliseconds to wait for a response. This defaults to 1000.
-
-		.PARAMETER Tcp
-			Indicates that TCP should be used. This is the default
-
-		.PARAMETER Udp
-			Indicates that UDP should be used.
+			This cmdlet results in a hashtable that looks like as follows: @{"Key" = "Test2"; "Key2" = "Test3"}
 
 		.INPUTS
-			None
+            None
 
-		.OUTPUTS
-			System.Boolean
+        .OUTPUTS
+            System.Collections.Hashtable
 
-		.NOTES
-			AUTHOR: Michael Haken
-			LAST UPDATE: 1/10/2017
+        .NOTES
+            AUTHOR: Michael Haken
+			LAST UPDATE: 8/21/2017	
 	#>
-    [CmdletBinding(DefaultParameterSetName = "tcp")]
-    Param(
-        [Parameter(Position = 0, Mandatory = $true)]
-		[ValidateRange(1, 65535)]
-        [System.Int32]$Port,
 
-        [Parameter(Position = 1)]
-        [System.String]$ComputerName = "localhost",
+	[CmdletBinding()]
+	[OutputType([System.Collections.Hashtable])]
+	Param(
+		[Parameter(Mandatory = $true)]
+		[ValidateNotNull()]
+		[System.Collections.Hashtable]$Source,
 
-        [Parameter(Position = 2)]
-        [System.Int32]$ReceiveTimeout = 1000,
+		[Parameter(Mandatory = $true)]
+		[ValidateNotNull()]
+		[System.Collections.Hashtable]$Update
+	)
 
-        [Parameter(ParameterSetName="tcp")]
-        [Switch]$Tcp,
+	Begin {
+	}
 
-        [Parameter(ParameterSetName="udp")]
-        [Switch]$Udp
-    )
+	Process {
+		# Make a copy of the source so it is not modified
+		[System.Collections.Hashtable]$Output = $Source.Clone()
 
-    Begin {     
-    }
-
-    Process {
-		$Success = $false
-
-        if ($PSCmdlet.ParameterSetName -eq "tcp") 
+		# Check each key in the update to see if the output already has it
+		foreach ($Key in $Update.Keys)
 		{
-            [System.Net.Sockets.TcpClient]$TcpObj = New-Object -TypeName System.Net.Sockets.TcpClient
-            Write-Verbose -Message "Beginning tcp connection to $ComputerName."
-
-			try
+			# If it does, update the value
+			if ($Output.ContainsKey($Key))
 			{
-				$Connection = $TcpObj.BeginConnect($ComputerName, $Port, $null, $null)
-				$Wait = $Connection.AsyncWaitHandle.WaitOne($ReceiveTimeout, $false)
+				$Output[$Key] = $Update[$Key]
+			}
+			else 
+			{
+				# If not, add the key/value
+				$Output.Add($Key, $Update[$Key])
+			}
+		}
 
-				if ($Wait -ne $null) 
+		Write-Output -InputObject $Output
+	}
+
+	End {
+	}
+}
+
+Function ConvertTo-Hashtable {
+	<#
+		.SYNOPSIS 
+			Converts a PSCustomObject to a Hashtable.
+
+		.DESCRIPTION
+			The cmdlet takes a PSCustomObject and converts all of its property key/values to a Hashtable. You can specify keys from the PSCustomObject to exclude or specify that empty values not be added to the Hashtable.
+
+		.PARAMETER InputObject
+			The PSCustomObject to convert.
+
+		.PARAMETER Exclude
+			The key values from the PSCustomObject not to include in the Hashtable.
+
+		.PARAMETER NoEmpty
+			Specify to not include keys with empty or null values from the PSCustomObject in the Hashtable.
+
+		.EXAMPLE
+			ConvertTo-Hashtable -InputObject ([PSCustomObject]@{"Name" = "Smith"})
+
+			Converts the inputted PSCustomObject to a hashtable.
+
+		.EXAMPLE 
+			ConvertTo-Hashtable -InputObject ([PSCustomObject]@{"LastName" = "Smith", "Middle" = "", "FirstName" = "John"}) -NoEmpty -Exclude @("FirstName")
+
+			Converts the inputted PSCustomObject to a hashtable. The empty property, Middle is excluded, and the property FirstName is excluded explicitly. This results
+			in a hashtable @{"LastName" = "Smith"}
+
+		.INPUTS
+            System.Management.Automation.PSCustomObject
+
+        .OUTPUTS
+            System.Collections.Hashtable
+
+        .NOTES
+            AUTHOR: Michael Haken
+			LAST UPDATE: 8/21/2017	
+	#>
+	[CmdletBinding()]
+	[OutputType([System.Collections.Hashtable])]
+	Param(
+		[Parameter(Mandatory = $true, ValueFromPipeline = $true)]
+		[ValidateNotNull()]
+		[PSCustomObject]$InputObject,
+
+		[Parameter()]
+		[ValidateNotNull()]
+		[System.String[]]$Exclude = @(),
+
+		[Parameter()]
+		[Switch]$NoEmpty
+	)
+
+	Begin {
+	}
+	
+	Process {
+		[System.Collections.Hashtable]$Result = @{}
+
+		$InputObject | Get-Member -MemberType "*Property" | Select-Object -ExpandProperty Name | ForEach-Object {
+			if ($Exclude -inotcontains $_) {
+				if ($NoEmpty -and -not ($InputObject.$_ -eq $null -or $InputObject.$_ -eq ""))
 				{
-					$Error.Clear()
-					Write-Verbose -Message "Ending connection."
-
-					try
-					{
-						$TcpObj.EndConnect($Connection) | Out-Null
-
-						if ($Error[0] -ne $null) 
-						{
-							Write-Verbose -Message ($Error[0].Exception.Message)
-						}
-						else 
-						{
-							Write-Verbose -Message "Connection successful."
-							$Success = $true
-						}
-					}
-					catch [Exception]
-					{
-						Write-Verbose -Message $_.Exception.Message
-					}
+					Write-Log -Message "Property $_ has an empty/null value." -Level VERBOSE
 				}
 				else 
 				{
-					Write-Verbose -Message "Connection timeout."
+					$Result.Add($_, $InputObject.$_)
 				}
 			}
-			finally
-			{
-				Write-Verbose -Message "Closing TCP connection."
-				$TcpObj.Close()
+			else {
+				Write-Log -Message "Property $_ excluded." -Level VERBOSE
 			}
-        }		
-		else 
-		{
-            [System.Net.Sockets.UdpClient]$UdpObj = New-Object -TypeName System.Net.Sockets.UdpClient
-            $UdpObj.Client.ReceiveTimeout = $ReceiveTimeout
-            Write-Verbose -Message "Connected to $ComputerName."
+		}
 
-            $UdpObj.Connect($ComputerName, $Port)
-            $TestData = New-Object System.Text.ASCIIEncoding
-            $Bytes = $TestData.GetBytes("$(Get-Date)")
-            Write-Verbose -Message "Sending data."
+		Write-Output -InputObject $Result
+	}
 
-            [void]$UdpObj.Send($Bytes, $Bytes.Length)
-            Write-Verbose -Message "Creating remote endpoint."
-            $RemoteEndpoint = New-Object System.Net.IPEndPoint([System.Net.IPAddress]::Any, 0)
+	End {
+	}
+}
 
-            try 
-			{
-                Write-Verbose -Message "Waiting for message return"
-                $ReceivedBytes = $UdpObj.Receive([ref]$RemoteEndpoint)
-                [string]$ReturnData = $TestData.GetString($ReceivedBytes)
+Function Convert-SecureStringToString {
+	<#
+		.SYNOPSIS
+			The cmdlet converts a secure string to standard string.
 
-                if (![System.String]::IsNullOrEmpty($ReturnData)) 
-				{
-                    Write-Verbose -Message "Connection successful"
-                    $Success = $true
-                }
-            }
-            catch [Exception] 
-			{
-                if ($_.Exception.Message -match "\brespond after a period of time\b") 
-				{
-                    Write-Verbose -Message "Testing ICMP connection for false positive."
-                    if (Test-Connection -ComputerName $ComputerName -Count 1 -Quiet) 
-					{
-                        Write-Verbose -Message "Connection successful."
-                        $Success = $true
-                    }        
-                }
-                else 
-				{
-                    Write-Verbose -Message $_.Exception.Message
-                }
-            }
-            finally 
-			{
-                $UdpObj.Close()
-            } 
-        }
+		.DESCRIPTION
+			The cmdlet converts a secure string to standard string.
+
+		.PARAMETER SecureString
+			The secure string to convert to a standard string
+
+		.INPUTS
+			System.Security.SecureString
 		
-		Write-Output -InputObject $Success                
+		.OUTPUTS
+			System.String
+
+		.EXAMPLE 
+			Convert-SecureStringToString -SecureString (ConvertTo-SecureString -String "test" -AsPlainText -Force)
+
+			Converts the secure string created from the text "test" back to plain text.
+
+		.NOTES
+			AUTHOR: Michael Haken
+			LAST UPDATE: 6/21/2017
+	#>
+	[CmdletBinding()]
+	[OutputType([System.String])]
+    Param(
+        [Parameter(Position = 0, ValueFromPipeline = $true, Mandatory = $true)]
+        [System.Security.SecureString]$SecureString
+    )
+
+    Begin {}
+
+    Process { 
+        [System.String]$PlainText = [System.String]::Empty
+        [System.IntPtr]$IntPtr = [System.IntPtr]::Zero
+
+        try 
+        {     
+            $IntPtr = [System.Runtime.InteropServices.Marshal]::SecureStringToGlobalAllocUnicode($SecureString)     
+            $PlainText = [System.Runtime.InteropServices.Marshal]::PtrToStringUni($IntPtr)   
+        }   
+        finally 
+        {     
+            if ($IntPtr -ne $null -and $IntPtr -ne [System.IntPtr]::Zero) 
+			{       
+                [System.Runtime.InteropServices.Marshal]::ZeroFreeGlobalAllocUnicode($IntPtr)     
+            }   
+        }
+
+		Write-Output -InputObject $PlainText
     }
 
-    End {
+    End {      
     }
 }
 
-Function Set-AutoLogon {
+#endregion
+
+
+#region Utility Functions
+
+Function New-EmptyTestFile {
 	<#
 		.SYNOPSIS
-			Enables or disables automatic logon for a user.
+			Creates an empty file of the specified size.
 
 		.DESCRIPTION
-			The cmdlet enables automatic logon for a specified user.
+			Creates a file of the provided size in the provided location to test against.
 
-		.EXAMPLE
-			Set-AutoLogon -Enable -Username "contoso\john.smith" -Password "MySecureP@$$W0rd"
+		.PARAMETER FilePath
+			The location the file should be created. This defaults to the user's desktop with a filename of Test.txt.
 
-			Creates an automatic logon for john.smith. The next time the server boots, this user will be automatically logged on.
-
-		.EXAMPLE
-			Set-AutoLogon -Disable
-
-		.PARAMETER Enable
-			Specifies that auto logon should be enabled. This is the default.
-
-		.PARAMETER Username
-			The user that should be automatically logged in.
-
-		.PARAMETER Password
-			The password for the user. The password is stored in plain text in the registry.
-
-		.PARAMETER Disable
-			Disables auto logon and clears any stored password.
+		.PARAMETER Size
+			The size of the file to be created. Can be specified in bytes or with units, such as 64GB or 32MB.
 
 		.INPUTS
 			None
@@ -2911,830 +4213,132 @@ Function Set-AutoLogon {
 		.OUTPUTS
 			None
 
+		.EXAMPLE
+			New-EmptyTestFile -FilePath "c:\test.cab" -Size 15MB
+
+			Creates an empty 15MB cab file at c:\test.cab.
+
 		.NOTES
 			AUTHOR: Michael Haken
-			LAST UPDATE: 11/14/2016
+			LAST UPDATED: 10/23/2017
+
+		.FUNCTIONALITY
+			This cmdlet is used to create empty test files to perform tests on.
 	#>
 	[CmdletBinding()]
+	[OutputType()]
 	Param(
-		[Parameter(Mandatory=$true, ParameterSetName="Enable")]
-		[switch]$Enable,
-		[Parameter(Mandatory=$true, ParameterSetName="Enable")]
-		[System.String]$UserName,
-		[Parameter(Mandatory=$true, ParameterSetName="Enable")]
-		[System.String]$Password,
-		[Parameter(Mandatory=$true, ParameterSetName="Disable")]
-		[switch]$Disable	
+		[Parameter(Position = 0, Mandatory = $true)]
+		[System.UInt64]$Size,
+
+		[Parameter(Position = 1)]
+		[ValidateNotNullOrEmpty()]
+		[System.String]$FilePath = "$env:USERPROFILE\Desktop\Test.txt"
 	)
 
 	Begin {}
 
-	Process {
-		if ($Enable) {
-			Write-Log "Enabling automatic logon." -Level VERBOSE
-			New-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name AutoAdminLogon -Value 1 -ErrorAction SilentlyContinue | Out-Null
-			New-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name DefaultUserName -Value $UserName -ErrorAction SilentlyContinue | Out-Null
-			New-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name DefaultPassword -Value $Password -ErrorAction SilentlyContinue | Out-Null
-		}
-		elseif ($Disable) {
-			Write-Log "Disabling automatic logon." -Level VERBOSE
-			Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name AutoAdminLogon -Value 0 -ErrorAction SilentlyContinue | Out-Null
-			Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name DefaultUserName -Value "" -ErrorAction SilentlyContinue | Out-Null
-			Remove-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name DefaultPassword -ErrorAction SilentlyContinue | Out-Null
-		}
+	Process
+	{
+		$Writer = [System.IO.File]::Create($FilePath)
+
+		$Bytes = New-Object Byte[] ($Size)
+		$Writer.Write($Bytes, 0, $Bytes.Length)
+
+		$Writer.Close()
+
+		Write-Log -Message "$Size file created at $FilePath" -Level VERBOSE
 	}
 
 	End {}
 }
 
-Function Set-FileSecurity {
+Function Where-NotMatchIn {
 	<#
 		.SYNOPSIS
-			Sets permissions on a file or directory.
+			The cmdlet identifies items from an input that do not match a set of match terms. Essentially, this filters out items from the
+			input against an array of filters.
 
 		.DESCRIPTION
-			Will add or replace the supplied rules to the specified file or directory. The default behavior is that the rules are just added to the current ACL of the object.
+			The cmdlet takes an input array of objects. It compares each of these objects, or a property of the object against
+			an array of match terms. If the item (or its property) does not match any of the match terms, it is returned to the pipeline.
 
-		.PARAMETER Path
-			The path to the file to set permissions on.
+		.PARAMETER InputObject
+			An array of items that need to be filtered. The items can be primitive types, strings, or objects. If the items are complex objects, you should
+			specify a property to be compared against the match terms.
 
-		.PARAMETER Rules
-			An array of File Access Rules to apply to the path.
+		.PARAMETER Matches
+			The set of string values to compare against the input items or a property of the input items. Any item in the Matches parameter that satifies
+			the "-ilike" operator against the input item will cause that item to be filtered out of the results.
 
-		.PARAMETER ReplaceAllRules
-			Indictates if all permissions on the path should be replaced with these.
-
-		.PARAMETER ReplaceNonInherited
-			Replaces all existing rules that are not inherited from a parent directory.
-
-		.PARAMETER ReplaceRulesForUser
-			Indicates if the supplied rules should replace existing rules for matching users. For example, if the Rules parameter has a Full Control rule for System and a Read rules for 
-			Administrators, existing rules for System and Administrators would be removed and replaced with the new rules.
-
-		.PARAMETER AddIfNotPresent
-			Add the rules if they do not already exist on the path. The rules are matched based on all properties including FileSystemRights, PropagationFlags, InheritanceFlags, etc.
-
-		.PARAMETER ForceChildInheritance
-			Indicates if all permissions of child items should have their permissions replaced with the parent if the target is a directory.
-
-		.PARAMETER EnableChildInheritance
-			Indicates that child items should have inheritance enabled, but will still preserve existing permissions. This parameter is ignored if ForceChildInheritance is specified.
-
-		.PARAMETER ResetInheritance
-			Indicates that all explicitly set permissions will be removed from the path and inheritance from its parent will be forced.
-
-        .EXAMPLE
-			PS C:\>Set-Permissions -Path "c:\test.txt" -Rules $Rules
-
-			Creates the rule set on the test.txt file.
+		.PARAMETER Property
+			If the input items are complex objects, specify a property of those items to be compared against the Matches parameter.
 
 		.EXAMPLE
-			PS C:\>Set-Permissions -Path "c:\test" -ResetInheritance
+			$Items = @("one", "oneTwo", "two", "oneThree", "three")
+			$Results = Where-NotMatchIn -Input $Items -Matches @("one*", "*two*")
 
-			Resets inherited permissions on the c:\test directory.
+			The results of this operation would be an array as follows: @("two", "three").
 
 		.EXAMPLE
-			PS C:\>Set-Permissions -Path "c:\test" -Rules $Rules -ReplaceAllRules -ForceChildInheritance
-
-			Replaces all existing rules on the c:\test directory with the newly supplied rules and forces child objects to inherit those permissions. This removes existing explicit permissions on child objects.
-
+			$Items = @([PSCustomObject]@{Name = "One"; Value = "1"}, @{Name = "Two"; Value = "2"})
+			$Results = Where-NotMatchIn -Input $Items -Matches ("one") -Property "Name"
+			
 		.INPUTS
-			None
+			System.Object[]
 
 		.OUTPUTS
-			None
+			System.Object[]
 
 		.NOTES
 			AUTHOR: Michael Haken
-			LAST UPDATE: 2/27/2017
+			LAST UPDATED: 10/24/2017
+
 	#>
-
-	[CmdletBinding(DefaultParameterSetName = "Add")]
-	[Alias("Set-FilePermissions")]
-    Param 
-    (
-        [Parameter(Position=0,Mandatory=$true)]
-        [string]$Path,
-
-		[Parameter(ParameterSetName="ReplaceAll")]
-		[Parameter(ParameterSetName="Replace")]
-		[Parameter(ParameterSetName="Add")]
-		[Parameter(ParameterSetName="AddIfNotPresent")]
-		[Parameter(ParameterSetName="ReplaceNonInherited")]
-		[Parameter(ParameterSetName="AddIfNotPresentAndReplace")]
-		[Alias("Rules")]
-		[ValidateNotNull()]
-        [System.Security.AccessControl.FileSystemAccessRule[]]$AccessRules,
-
-		[Parameter(ParameterSetName = "ReplaceAll")]
-		[Parameter(ParameterSetName = "Replace")]
-		[Parameter(ParameterSetName = "Add")]
-		[Parameter(ParameterSetName = "AddIfNotPresent")]
-		[Parameter(ParameterSetName = "ReplaceNonInherited")]
-		[Parameter(ParameterSetName = "AddIfNotPresentAndReplace")]
-		[ValidateNotNull()]
-		[System.Security.AccessControl.FileSystemAuditRule[]]$AuditRules,
-
-		[Parameter(ParameterSetName="ReplaceAll")]
-		[switch]$ReplaceAllRules,
-
-		[Parameter(ParameterSetName="ReplaceNonInherited")]
-		[switch]$ReplaceNonInheritedRules,
-
-		[Parameter(ParameterSetName="Replace")]
-		[switch]$ReplaceRulesForUser,
-
-		[Parameter(ParameterSetName="AddIfNotPresent")]
-		[switch]$AddIfNotPresent,
-
-		[Parameter(ParameterSetName="AddIfNotPresentAndReplace")]
-		[switch]$AddIfNotPresentAndReplace,
-
-		[Parameter()]
-		[switch]$ForceChildInheritance,
-
-		[Parameter()]
-		[switch]$EnableChildInheritance,
-
-		[Parameter(ParameterSetName="Reset")]
-		[switch]$ResetInheritance
-    )
-
-    Begin 
-	{       	
-		Function Convert-FileSystemRights {
-			Param(
-				[Parameter(Mandatory = $true, Position = 0)]
-				[System.Security.AccessControl.FileSystemRights]$Rights
-			)
-
-			Begin {
-			}
-
-			Process {
-				[System.Security.AccessControl.FileSystemRights]$ExistingFileSystemRights = $Rights
-				[System.Int32]$Temp = $Rights
-
-				switch ($Temp)
-				{
-					#268435456
-					0x10000000 {
-						$ExistingFileSystemRights = [System.Security.AccessControl.FileSystemRights]::FullControl
-						break
-					}
-					#-1610612736
-					0xA0000000 {
-						$ExistingFileSystemRights = @([System.Security.AccessControl.FileSystemRights]::ReadAndExecute, [System.Security.AccessControl.FileSystemRights]::Synchronize)
-						break
-					}
-					#-536805376
-					0xE0010000 {
-						$ExistingFileSystemRights = @([System.Security.AccessControl.FileSystemRights]::Modify, [System.Security.AccessControl.FileSystemRights]::Synchronize)
-						break
-					}
-					default {
-						$ExistingFileSystemRights = $Rights
-						break
-					}
-				}
-
-				Write-Output -InputObject $ExistingFileSystemRights
-			}
-
-			End {
-			}
-		}
-
-		Function Get-AuthorizationRuleComparison {
-			Param(
-				[Parameter(Mandatory = $true, Position = 0)]
-				[System.Security.AccessControl.AuthorizationRule]$Rule1,
-
-				[Parameter(Mandatory = $true, Position = 1)]
-				[System.Security.AccessControl.AuthorizationRule]$Rule2
-			)
-
-			Begin {
-			}
-
-			Process {
-				$Equal = $false
-
-				try
-				{
-					[System.Security.AccessControl.FileSystemRights]$ExistingFileSystemRights1  = Convert-FileSystemRights -Rights $Rule1.FileSystemRights
-					[System.Security.AccessControl.FileSystemRights]$ExistingFileSystemRights2  = Convert-FileSystemRights -Rights $Rule2.FileSystemRights
-
-					if ($ExistingFileSystemRights1 -eq $ExistingFileSystemRights2 -and `
-						$Rule1.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]) -eq $Rule2.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]) -and `
-						$Rule1.AccessControlType -eq $Rule2.AccessControlType -and `
-						$Rule1.InheritanceFlags -eq $Rule2.InheritanceFlags -and `
-						$Rule1.PropagationFlags -eq $Rule2.PropagationFlags)
-					{
-						$Equal = $true
-					}
-				}
-				catch [Exception]
-				{
-					Write-Verbose -Message "[ERROR] Error evaluating access rule $($_.Exception.Message) : `nExisting $($Rule1 | FL | Out-String) `nNew $($Rule2 | FL | Out-String)"
-				}
-
-				Write-Output -InputObject $Equal
-			}
-
-			End {
-			}
-		}
-	}
-
-    Process
-    {
-		if ($PSCmdlet.ParameterSetName -eq "Add" -and $AccessRules.Length -eq 0 -and $AuditRules.Length -eq 0)
-		{
-			throw "Either a set of access rules or audit rules must be provided to add to the path."
-		}
-
-		Write-Verbose -Message "Setting access and audit rules on $Path"
-		Push-Location -Path $env:SystemDrive
-
-		[System.Boolean]$IsProtectedFromInheritance = $false
-
-		#This is ignored if IsProtectedFromInheritance is false
-		[System.Boolean]$PreserveInheritedRules = $false
-
-		try
-        {
-			#$Acl = Get-Acl -Path $Path
-			$Item = Get-Item -Path $Path
-			[System.Security.AccessControl.FileSystemSecurity]$Acl = $Item.GetAccessControl(@([System.Security.AccessControl.AccessControlSections]::Access, [System.Security.AccessControl.AccessControlSections]::Audit))
-
-            if ($Acl -ne $null)
-            {
-				switch ($PSCmdlet.ParameterSetName) {
-					"ReplaceAll" {
-
-						if ($AccessRules.Length -gt 0)
-						{
-							Write-Verbose -Message "Disabling access rule inheritance on $Path"
-							$Acl.SetAccessRuleProtection($IsProtectedFromInheritance, $PreserveInheritedRules)
-
-							[System.Security.AccessControl.AuthorizationRuleCollection]$OldAcls = $Acl.Access
-
-							foreach ($Rule in $OldAcls)
-							{
-								try 
-								{
-									$Acl.RemoveAccessRule($Rule) | Out-Null
-								}
-								catch [Exception] 
-								{
-									Write-Verbose -Message "[ERROR] Error removing access rule $($_.Exception.Message) : $($Rule | FL | Out-String)"
-								}
-							}
-						}
-
-						if ($AuditRules.Length -gt 0)
-						{
-							Write-Verbose -Message "Disabling audit rule inheritance on $Path"
-							$Acl.SetAuditRuleProtection($IsProtectedFromInheritance, $PreserveInheritedRules)
-
-							Write-Verbose -Message "Getting audit rules"
-							[System.Security.AccessControl.AuthorizationRuleCollection]$OldAuditRules = $Acl.GetAuditRules($script:EXPLICIT_TRUE,  $script:INHERITED_FALSE, [System.Security.Principal.NTAccount])
-
-							foreach ($Rule in $OldAuditRules)
-							{
-								try
-								{
-									$Acl.RemoveAuditRule($Rule) | Out-Null
-								}
-								catch [Exception]
-								{
-									Write-Verbose -Message "[ERROR] Error removing audit rule $($_.Exception.Message) : $($Rule | FL | Out-String)"
-								}
-							}
-						}
-
-						break
-					}
-					"ReplaceNonInherited" {
-
-						if ($AccessRules.Length -gt 0)
-						{
-							[System.Security.AccessControl.AuthorizationRuleCollection]$OldAcls = $Acl.Access
-
-							foreach ($Rule in ($OldAcls | Where-Object {$_.IsInherited -eq $false}))
-							{
-								try 
-								{
-									$Acl.RemoveAccessRule($Rule) | Out-Null
-								}
-								catch [Exception] 
-								{
-									Write-Verbose -Message "[ERROR] Error removing access rule $($_.Exception.Message) : $($Rule | FL | Out-String)"
-								}
-							}
-						}
-
-						if ($AuditRules.Length -gt 0)
-						{
-							Write-Verbose -Message "Disabling audit rule inheritance on $Path"
-
-							Write-Verbose -Message "Getting non inherited audit rules"
-							[System.Security.AccessControl.AuthorizationRuleCollection]$OldAuditRules = $Acl.GetAuditRules($script:EXPLICIT_TRUE,  $script:INHERITED_FALSE, [System.Security.Principal.NTAccount])
-
-							foreach ($Rule in $OldAuditRules)
-							{
-								try
-								{
-									$Acl.RemoveAuditRule($Rule) | Out-Null
-								}
-								catch [Exception]
-								{
-									Write-Verbose -Message "[ERROR] Error removing audit rule $($_.Exception.Message) : $($Rule | FL | Out-String)"
-								}
-							}
-						}
-
-						break
-					}
-					"Replace" {
-						
-						[System.Security.Principal.SecurityIdentifier[]]$Identities = $AccessRules | Select-Object -Property @{Name = "ID"; Expression = { $_.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]) } } | Select-Object -ExpandProperty ID
-						foreach ($Sid in $Identities)
-						{
-							$Acl.PurgeAccessRules($Sid)
-							$Acl.PurgeAuditRules($Sid)
-						}
-						
-						break
-					}
-					"Add" {
-						#Do Nothing
-						break
-					}
-					"Reset" {
-						[System.Security.AccessControl.AuthorizationRuleCollection]$OldAcls = $Acl.Access
-
-						foreach ($Rule in $OldAcls)
-						{
-							$Acl.RemoveAccessRule($Rule) | Out-Null
-						}
-				
-						$Acl.SetAccessRuleProtection($IsProtectedFromInheritance, $PreserveInheritedRules)			
-
-						[System.Security.AccessControl.AuthorizationRuleCollection]$OldAuditRules = $Acl.GetAuditRules($script:EXPLICIT_TRUE,  $script:INHERITED_FALSE, [System.Security.Principal.NTAccount])
-
-						foreach ($Rule in $OldAuditRules)
-						{
-							$Acl.RemoveAuditRule($Rule) | Out-Null
-						}
-
-						$Acl.SetAuditRuleProtection($IsProtectedFromInheritance, $PreserveInheritedRules)
-						
-						#Call set ACL since no additional rules are provided
-						$Item.SetAccessControl($Acl)
-					}
-					"AddIfNotPresent" {
-						if ($AccessRules.Length -gt 0)
-						{
-							foreach ($Rule in $AccessRules)
-							{
-								[System.Boolean]$Found = $false
-
-								foreach ($ExistingRule in $Acl.Access)
-								{
-									$Found = Get-AuthorizationRuleComparison -Rule1 $ExistingRule -Rule2 $Rule
-									if ($Found -eq $true)
-									{
-										Write-Verbose -Message "Found matching access rule, no need to add this one"
-										break
-									}
-								}
-
-								if ($Found -eq $false)
-								{
-									try
-									{
-										$Acl.AddAccessRule($Rule)
-									}
-									catch [Exception]
-									{
-										Write-Verbose -Message "[ERROR] Error adding access rule $($_.Exception.Message) : $($Rule | FL | Out-String)"
-									}
-								}
-							}
-
-							#Call set access control since we've already added the rules
-							$Item.SetAccessControl($Acl)
-						}	
-
-						if ($AuditRules.Length -gt 0)
-						{
-							foreach ($Rule in $AuditRules)
-							{
-								[System.Boolean]$Found = $false
-
-								foreach ($ExistingRule in $Acl.GetAuditRules($script:EXPLICIT_TRUE, $script:INHERITED_FALSE, [System.Security.Principal.NTAccount]))
-								{
-									$Found = Get-AuthorizationRuleComparison -Rule1 $ExistingRule -Rule2 $Rule
-
-									if ($Found -eq $true)
-									{
-										break
-									}
-								}
-
-								if ($Found -eq $false)
-								{
-									try
-									{
-										$Acl.AddAuditRule($Rule)
-									}
-									catch [Exception]
-									{
-										Write-Verbose -Message "[ERROR] Error adding audit rule $($_.Exception.Message) : $($Rule | FL | Out-String)"
-									}
-								}
-							}
-							#Call set access control since we've already added the rules
-							$Item.SetAccessControl($Acl)
-						}
-						break
-					}
-					"AddIfNotPresentAndReplace" {
-						if ($AccessRules.Length -gt 0)
-						{
-							foreach ($ExistingRule in ($Acl.Access | Where-Object {$_.IsInherited -eq $false }))
-							{
-								[System.Boolean]$Found = $false
-
-								foreach ($Rule in $AccessRules)
-								{
-									$Found = Get-AuthorizationRuleComparison -Rule1 $ExistingRule -Rule2 $Rule
-
-									#The existing rule did match a new rule
-									if ($Found -eq $true)
-									{
-										break
-									}
-								}
-
-								#The existing rule did not match a new rule, remove it
-								if ($Found -eq $false)
-								{
-									try
-									{
-										Write-Verbose -Message "Removing rule $($Rule | FL | Out-String)"
-										$Acl.RemoveAccessRule($ExistingRule)
-									}
-									catch [Exception]
-									{
-										Write-Verbose -Message "[ERROR] Error removing access rule $($_.Exception.Message) : $($Rule | FL | Out-String)"
-									}
-								}
-							}
-
-
-							foreach ($Rule in $AccessRules)
-							{
-								[System.Boolean]$Found = $false
-
-								foreach ($ExistingRule in $Acl.Access)
-								{
-									$Found = Get-AuthorizationRuleComparison -Rule1 $ExistingRule -Rule2 $Rule
-
-									if ($Found -eq $true)
-									{
-										break
-									}
-								}
-
-								#Did not find a matching, existing rule
-								if ($Found -eq $false)
-								{
-									try
-									{
-										Write-Verbose -Message "Adding rule $($Rule | FL | Out-String)"
-										$Acl.AddAccessRule($Rule)
-									}
-									catch [Exception]
-									{
-										Write-Verbose -Message "[ERROR] Error adding access rule $($_.Exception.Message) : $($Rule | FL | Out-String)"
-									}
-								}
-							}
-
-							#Call set access control since we've already added the rules
-							$Item.SetAccessControl($Acl)
-						}	
-
-						if ($AuditRules.Length -gt 0)
-						{
-							foreach ($ExistingRule in $Acl.GetAuditRules($script:EXPLICIT_TRUE, $script:INHERITED_FALSE, [System.Security.Principal.NTAccount]))
-							{
-								[System.Boolean]$Found = $false
-
-								foreach ($Rule in $AccessRules)
-								{
-									$Found = Get-AuthorizationRuleComparison -Rule1 $ExistingRule -Rule2 $Rule
-
-									#The existing rule did match a new rule
-									if ($Found -eq $true)
-									{
-										break
-									}
-								}
-
-								#The existing rule did not match a new rule, remove it
-								if ($Found -eq $false)
-								{
-									try
-									{
-										Write-Verbose -Message "Removing rule $($Rule | FL | Out-String)"
-										$Acl.RemoveAuditRule($ExistingRule)
-									}
-									catch [Exception]
-									{
-										Write-Verbose -Message "[ERROR] Error removing audit rule $($_.Exception.Message) : $($Rule | FL | Out-String)"
-									}
-								}
-							}
-
-							foreach ($Rule in $AuditRules)
-							{
-								[System.Boolean]$Found = $false
-
-								foreach ($ExistingRule in ($Acl.GetAuditRules($script:EXPLICIT_TRUE, $true, [System.Security.Principal.NTAccount]) | Where-Object {$_.IsInherited -eq $false }))
-								{
-									$Found = Get-AuthorizationRuleComparison -Rule1 $ExistingRule -Rule2 $Rule
-
-									if ($Found -eq $true)
-									{
-										break
-									}
-								}
-
-								#Did not find a matching, existing rule
-								if ($Found -eq $false)
-								{
-									try
-									{
-										Write-Verbose -Message "Adding audit rule $($Rule | FL | Out-String)"
-										$Acl.AddAuditRule($Rule)
-									}
-									catch [Exception]
-									{
-										Write-Verbose -Message "[ERROR] Error adding audit rule $($_.Exception.Message) : $($Rule | FL | Out-String)"
-									}
-								}
-							}
-
-							#Call set access control since we've already added the rules
-							$Item.SetAccessControl($Acl)
-						}
-
-						break
-					}
-					default {
-						throw "Could not determine parameter set name"
-					}
-				}
-				
-				if ($PSCmdlet.ParameterSetName -like "Replace*" -or $PSCmdlet.ParameterSetName -eq "Add")
-				{
-					#Add new access rules
-					if($AccessRules.Length -gt 0)
-					{
-						foreach ($Rule in $AccessRules) 
-						{
-							$Acl.AddAccessRule($Rule)
-						}
-
-						$Item.SetAccessControl($Acl)
-					}
-
-					#Add new audit rules
-					if ($AuditRules.Length -gt 0)
-					{
-						foreach ($Rule in $AuditRules)
-						{
-							$Acl.AddAuditRule($Rule)
-						}
-
-						$Item.SetAccessControl($Acl)
-					}	
-				}
-
-				#If child permissions should be forced to inherit
-				if (($ForceChildInheritance -or $EnableChildInheritance) -and [System.IO.Directory]::Exists($Path))
-				{
-					Write-Verbose -Message "Evaluating child items"
-					Get-ChildItem -Path $Path -Recurse -Force | ForEach-Object {
-
-						$ChildItem = Get-Item -Path $_.FullName
-						[System.Security.AccessControl.FileSystemSecurity]$ChildAcl = $ChildItem.GetAccessControl(@([System.Security.AccessControl.AccessControlSections]::Access, [System.Security.AccessControl.AccessControlSections]::Audit))
-
-						if ($AccessRules.Length -gt 0 -or $PSCmdlet.ParameterSetName -eq "Reset")
-						{
-							if ($ForceChildInheritance)
-							{
-								Write-Verbose -Message "Forcing access rule inheritance on $($ChildItem.FullName)"
-
-								foreach ($ChildRule in ($ChildAcl.Access | Where-Object {$_.IsInherited -eq $false }))
-								{
-									try
-									{
-										$ChildAcl.RemoveAccessRule($ChildRule) | Out-Null
-									}
-									catch [Exception]
-									{
-										Write-Warning -Message "Error removing ACL from $($ChildItem.FullName)`: $($_.Exception.Message) $($ChildRule | FL | Out-String)"
-									}
-								}
-							}
-
-							try
-							{
-								$ChildAcl.SetAccessRuleProtection($IsProtectedFromInheritance, $PreserveInheritedRules)
-								$ChildItem.SetAccessControl($ChildAcl)
-							}
-							catch [Exception]
-							{
-								Write-Verbose -Message "[ERROR] Could not set ACL on path $ChildPath : $($_.Exception.Message)."
-							}
-						}
-
-						if ($AuditRules.Length -gt 0 -or $PSCmdlet.ParameterSetName -eq "Reset")
-						{
-							Write-Verbose -Message "Forcing audit rule inheritance on $($ChildItem.FullName)"
-
-							[System.Security.AccessControl.AuthorizationRuleCollection]$OldChildAuditRules = $ChildAcl.GetAuditRules($script:EXPLICIT_TRUE, $script:INHERITED_FALSE, [System.Security.Principal.NTAccount])
-
-							if ($ForceChildInheritance)
-							{
-								foreach ($ChildAudit in $OldChildAuditRules)
-								{
-									try
-									{
-										$ChildAcl.RemoveAuditRule($ChildAudit) | Out-Null
-									}
-									catch [Exception]
-									{
-										Write-Warning -Message "Error removing audit from $($ChildItem.FullName)`: $($_.Exception.Message) $($ChildAudit | FL | Out-String)"
-									}
-								}
-							}
-
-							try
-							{
-								$ChildAcl.SetAccessRuleProtection($IsProtectedFromInheritance, $PreserveInheritedRules)
-								$ChildItem.SetAccessControl($ChildAcl)
-							}
-							catch [Exception]
-							{
-								Write-Verbose -Message "[ERROR] Could not set ACL on path $ChildPath : $($_.Exception.Message)."
-							}
-						}
-					}
-				}                   
-            }
-            else
-            {
-                Write-Warning -Message "Could not retrieve the ACL for $Path"
-            }
-        }
-        catch [System.Exception]
-        {
-            Write-Warning -Message $_.Exception.Message
-        }
-
-		Pop-Location
-    }
-    
-    End {}
-}
-
-Function Set-Owner {
-    <#
-        .SYNOPSIS
-            Changes owner of a file or folder to another user or group.
-
-        .DESCRIPTION
-            Changes owner of a file or folder to another user or group.
-
-        .PARAMETER Path
-            The folder or file that will have the owner changed.
-
-        .PARAMETER Account
-            Optional parameter to change owner of a file or folder to specified account.
-
-            Default value is 'Builtin\Administrators'
-
-        .PARAMETER Recurse
-            Recursively set ownership on subfolders and files beneath given folder. If the specified path is a file, this parameter is ignored.
-
-		.EXAMPLE
-            PS C:\>Set-Owner -Path C:\temp\test.txt
-
-            Changes the owner of test.txt to Builtin\Administrators
-
-        .EXAMPLE
-            PS C:\>Set-Owner -Path C:\temp\test.txt -Account Domain\user
-
-            Changes the owner of test.txt to Domain\user
-
-        .EXAMPLE
-            PS C:\>Set-Owner -Path C:\temp -Recurse 
-
-            Changes the owner of all files and folders under C:\Temp to Builtin\Administrators
-
-        .EXAMPLE
-            PS C:\>Get-ChildItem C:\Temp | Set-Owner -Recurse -Account 'Domain\Administrator'
-
-            Changes the owner of all files and folders under C:\Temp to Domain\Administrator
-
-        .NOTES
-			AUTHOR: Michael Haken
-			LAST UPDATE: 10/23/2017
-    #>
-    [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = "HIGH")]
-    Param (
-        [Parameter(Position  =0 , ValueFromPipeline = $true, Mandatory = $true)]
-        [Alias("FullName")]
-		[System.String]$Path,
+	[CmdletBinding()]
+	[OutputType([System.Object[]])]
+    Param(
+        [Parameter(Position = 0, ValueFromPipeline = $true)]
+        [System.Object[]]$InputObject,
 
         [Parameter(Position = 1)]
-        [System.String]$Account = 'BUILTIN\Administrators',
+        [System.String[]]$Matches,
 
         [Parameter()]
-        [switch]$Recurse,
-
-        [Parameter()]
-        [Switch]$Force
+        [System.String]$Property = [System.String]::Empty
     )
 
     Begin {
-        if (!([System.Security.Principal.WindowsPrincipal][System.Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)) {
-			throw "Run the cmdlet with elevated credentials."
-		}
-
-        Set-SecurityPrivilege -Privileges @("SeRestorePrivilege","SeBackupPrivilege","SeTakeOwnershipPrivilege") -Enable
     }
 
     Process {
-        Write-Verbose -Message "Path: $Path"
-		$Account = Get-AccountTranslatedNTName -UserName $Account
-		Write-Verbose -Message "Account Name: $Account"
+		
 
-        #The ACL objects do not like being used more than once, so re-create them on the Process block
-        $DirOwner = New-Object System.Security.AccessControl.DirectorySecurity
-        $DirOwner.SetOwner((New-Object -TypeName System.Security.Principal.NTAccount($Account)))
-        
-		$FileOwner = New-Object System.Security.AccessControl.FileSecurity
-        $FileOwner.SetOwner((New-Object -TypeName System.Security.Principal.NTAccount($Account)))
-        
-        try {
-			$Item = Get-Item -LiteralPath $Path -Force -ErrorAction Stop
+        foreach($Item in $InputObject) {
+            $Match = $false
 
-            if (-not $Item.PSIsContainer) 
-            {
-                $ConfirmMessage = "You are about to change the owner of $($Item.FullName) to $Account."
-				$WhatIfDescription = "Set Owner of $($Item.FullName)."
-				$ConfirmCaption = "Set File Owner"
+            if ($Property -eq [System.String]::Empty) {
+                $Value = $Item
+            }
+            else {
+                $Value = $Item.$Property
+            }
 
-				if ($Force -or $PSCmdlet.ShouldProcess($WhatIfDescription, $ConfirmMessage, $ConfirmCaption))
-				{
-                    $Item.SetAccessControl($FileOwner)
-                    Write-Verbose -Message "Set ownership to $Account on $($Item.FullName)"
+            foreach ($Matcher in $Matches) {
+				
+                if ($Value -ilike $Matcher) {
+                    $Match = $true
+                    break
                 }
             }
-            else
-            {
-                $ConfirmMessage = "You are about to change the owner of $($Item.FullName) to $Account."
-				$WhatIfDescription = "Set Owner of $($Item.FullName)."
-				$ConfirmCaption = "Set Directory Owner"
 
-				if ($Force -or $PSCmdlet.ShouldProcess($WhatIfDescription, $ConfirmMessage, $ConfirmCaption))
-				{
-                    $Item.SetAccessControl($DirectoryOwner)
-                    Write-Verbose -Message "Set ownership to $Account on $($Item.FullName)"
-                }
-
-                if ($Recurse) 
-				{
-					Get-ChildItem $Item -Force -Recurse | ForEach-Object {
-						Set-Owner -Path $_.FullName -Account $Account
-					}
-				}
+            if (!$Match) {
+                Write-Output -InputObject $Item
             }
-        }
-        catch [Exception] {
-            Write-Warning -Message "$($Item.FullName): $($_.Exception.Message)"
         }
     }
 
-    End {
-        Set-SecurityPrivilege -Privileges @("SeRestorePrivilege","SeBackupPrivilege","SeTakeOwnershipPrivilege") -Disable
+    End {       
     }
 }
 
@@ -3767,12 +4371,16 @@ Function Test-RegistryKeyProperty {
 			AUTHOR: Michael Haken
 			LAST UPDATE: 2/28/2016
 	#>
-
+	[CmdletBinding()]
+	[OutputType([System.Boolean])]
 	Param (
-		[Parameter(Position=0, Mandatory=$true)]
-		[string]$Key,
-		[Parameter(Position=1, Mandatory=$true)]
-		[string]$PropertyName
+		[Parameter(Position = 0, Mandatory = $true)]
+		[ValidateNotNullOrEmpty()]
+		[System.String]$Key,
+
+		[Parameter(Position = 1, Mandatory = $true)]
+		[ValidateNotNullOrEmpty()]
+		[System.String]$PropertyName
 	)
 
 	Begin {
@@ -3786,6 +4394,175 @@ Function Test-RegistryKeyProperty {
 	End {
 	}
 }
+
+Function Test-PendingReboots {
+	<#
+		.SYNOPSIS
+			Determines if there are any pending reboot operations.
+
+		.DESCRIPTION
+			This cmdlet checks pending reboots from Windows Update, File Rename Operations, Computer Renaming, SCCM, and Component Based Servicing.
+
+		.INPUTS
+			None
+
+		.OUTPUTS
+			System.Boolean
+
+        .EXAMPLE
+			Test-PendingReboots
+
+			Returns true if there are pending reboots or false otherwise.
+
+		.NOTES
+			AUTHOR: Michael Haken
+			LAST UPDATE: 8/24/2016
+	#>
+	[CmdletBinding()]
+	[OutputType([System.Boolean])]
+	Param(
+	)
+
+	Begin {		
+	}
+
+	Process {
+		$CbsReboot = $false
+		$SccmReboot = $false
+
+		$OSBuild = Get-CimInstance -Class Win32_OperatingSystem -Property BuildNumber -ErrorAction SilentlyContinue | Select-Object -ExpandProperty BuildNumber
+		
+		$WindowsUpdateReboot = Test-Path -Path "HKLM:\\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired"
+
+		#if OS is Vista/2008 or greater
+		if ([System.Int32]$OSBuild -ge 6001)
+		{
+			$CbsReboot = (Get-ChildItem -Path "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Component Based Servicing" | Select-Object -ExpandProperty Name | Where-Object {$_ -contains "RebootPending"}) -ne $null
+		}
+
+		$FileRename = Get-ItemProperty -Path "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Session Manager" -Name "PendingFileRenameOperations" -ErrorAction SilentlyContinue
+
+		$FileNameReboot = ($FileName -ne $null)
+
+		$ComputerRenameReboot = (Get-ItemProperty -Path "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\ComputerName\\ActiveComputerName" -Name ComputerName -ErrorAction SilentlyContinue | Select-Object -ExpandProperty ComputerName) -ne 
+			(Get-ItemProperty -Path "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\ComputerName\\ComputerName" -Name ComputerName -ErrorAction SilentlyContinue | Select-Object -ExpandProperty ComputerName)
+
+		try
+		{
+			$SccmClientSDK = Invoke-CimMethod -ClassName CCM_ClientUtilities -MethodName "DetermineIfRebootPending" -Namespace "ROOT\\ccm\\ClientSDK" -ErrorAction Stop
+			$SccmReboot = ($SccmClientSDK.IsHardRebootPending -or $SccmClientSDK.RebootPending)
+		}
+		catch [Exception] {}
+
+		$Reboots = @{"Component Based Servicing" = $CbsReboot; "File Rename" = $FileNameReboot; "Computer Rename" = $ComputerRenameReboot; "Windows Update" = $WindowsUpdateReboot; "SCCM" = $SccmReboot}
+
+		$Reboots.GetEnumerator() | Where-Object {$_.Value -eq $true} | ForEach-Object {
+			Write-Log -Message "Pending reboot for $($_.Name)." -Level "VERBOSE"
+		}
+
+		Write-Output -InputObject ($Reboots.ContainsValue($true))
+	}
+
+	End {		
+	}
+}
+
+Function Get-RegistryKeyEntries {
+	<#
+		.SYNOPSIS
+			Gets all of the properties and their values associated with a registry key.
+
+		.DESCRIPTION
+			The Get-RegistryKeyEntries cmdlet gets each entry and its value for a specified registry key.
+
+		.PARAMETER Path
+			The registry key path in the format that PowerShell can process, such as HKLM:\Software\Microsoft or Registry::HKEY_LOCAL_MACHINE\Software\Microsoft
+
+		.INPUTS
+			System.String
+
+				You can pipe a registry path to Get-RegistryKeyEntries.
+
+		.OUTPUTS
+			System.Management.Automation.PSCustomObject[]
+
+		.EXAMPLE
+			Get-RegistryEntries -Path HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall
+
+			Gets all of the entries associated with the registry key. It does not get any information about subkeys.
+
+		.NOTES
+			AUTHOR: Michael Haken	
+			LAST UPDATE: 2/27/2016
+
+		.FUNCTIONALITY
+			The intended use of this cmdlet is to supplement the Get-ItemProperty cmdlet to get the values for every entry in a registry key.
+	#>
+	[CmdletBinding()]
+	[OutputType([System.Management.Automation.PSCustomObject[]])]
+	Param(
+		[Parameter(Position = 0, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true, Mandatory = $true)]
+		[ValidateScript({
+			Test-Path -Path $_
+		})]
+		[ValidateNotNullOrEmpty()]
+		[System.String]$Path
+	)
+
+	Begin {}
+
+	Process
+	{
+		Get-Item -Path $Path | Select-Object -ExpandProperty Property | ForEach-Object {
+			Write-Output -InputObject ([PSCustomObject]@{"Path"=$Path;"Property"="$_";"Value"=(Get-ItemProperty -Path $Path -Name $_ | Select-Object -ExpandProperty $_)})
+		}
+	}
+
+	End {}
+}
+
+Function Get-IPv6ConfigurationOptions {
+	<#
+		.SYNOPSIS
+			Writes the HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters DisabledComponents key property possible options.
+
+		.DESCRIPTION
+			The Get-IPv6ConfigurationOptions cmdlet writes the HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters DisabledComponents key property possible options. This registry key entry determines which components of IPv6 are enabled or disabled.
+
+			The cmdlet writes the possible values to enter in this key entry.
+
+		.EXAMPLE
+			Get-IPv6ConfigurationOptions
+
+			This command returns the possible registry key settings as an array of PSCustomObjects.
+
+		.INPUTS
+			None
+
+		.OUTPUTS
+			System.Management.Automation.PSCustomObject[]
+		
+		.NOTES
+			AUTHOR: Michael Haken	
+			LAST UPDATE: 2/28/2016
+	#>
+	[CmdletBinding()]
+	[OutputType([System.Management.Automation.PSCustomObject[]])]
+	Param()
+
+	Begin {}
+
+	Process {
+		Write-Output -InputObject $script:IPv6Configs
+	}
+
+	End {}
+}
+
+#endregion
+
+
+#region Parallel / Using / Processing
 
 Function ForEach-ObjectParallel {
 	<#
@@ -3874,8 +4651,10 @@ Function ForEach-ObjectParallel {
 			LAST UPDATE: 10/26/2016
 	#>
 	[CmdletBinding()]
+	[OutputType([System.Object[]])]
 	Param(	       
 		[Parameter(Mandatory = $true, Position = 0, ParameterSetName = "ScriptBlock")]
+		[ValidateNotNull()]
 		[System.Management.Automation.ScriptBlock]$ScriptBlock,
 
 		[Parameter(Mandatory = $true, Position = 0, ParameterSetName = "Cmdlet")]
@@ -3885,12 +4664,15 @@ Function ForEach-ObjectParallel {
 		[System.String]$Cmdlet,
 
         [Parameter(Mandatory = $true, ValueFromPipeline = $true, Position = 1)]
+		[ValidateNotNull()]
 		[System.Object[]]$InputObject,
 
 		[Parameter()]
+		[ValidateNotNull()]
 		[System.Collections.Hashtable]$Parameters,
 
         [Parameter()]
+		[ValidateNotNullOrEmpty()]
         $InputParamName = [System.String]::Empty,
 
 		[Parameter()]
@@ -4036,9 +4818,11 @@ Function Invoke-CommandInNewRunspace {
 			LAST UPDATE: 10/26/2016
 	#>
 	[CmdletBinding()]
+	[OutputType([System.Object])]
 	Param(
 		
 		[Parameter(Mandatory = $true, Position = 0, ParameterSetName = "ScriptBlock")]
+		[ValidateNotNull()]
 		[System.Management.Automation.ScriptBlock]$ScriptBlock,
 
 		[Parameter(Mandatory = $true, Position = 0, ParameterSetName = "Cmdlet")]
@@ -4048,6 +4832,7 @@ Function Invoke-CommandInNewRunspace {
 		[System.String]$Cmdlet,
 
 		[Parameter(Position = 1)]
+		[ValidateNotNull()]
 		[System.Collections.Hashtable]$Parameters
 	)
 
@@ -4108,1729 +4893,6 @@ Function Invoke-CommandInNewRunspace {
 	}
 }
 
-Function Get-WindowsActivationInformation {
-	<#
-		.SYNOPSIS
-			Gets information about the Windows Activation.
-
-		.DESCRIPTION
-			The cmdlet gets the Product Key, Product Id, the OEM Product Key stored in the BIOS, and OS version.
-
-		.EXAMPLE
-			Get-WindowsActivationInformation
-
-			Gets the activation information from the local computer.
-
-		.INPUTS
-			None
-
-		.OUTPUTS
-			System.Management.Automation.PSObject
-
-		.NOTES
-			AUTHOR: Michael Haken
-			LAST UPDATE: 11/14/2016
-	#>
-	[CmdletBinding()]
-	Param(
-	)
-
-	Begin {
-		$RegPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion"
-		$Namespace = "root\cimv2"
-		$SWService = "SoftwareLicensingService"
-		$OEMProdKey = "OA3xOriginalProductKey"
-		$RegKey = "DigitalProductId"
-		$ByteArrayStart = 52
-		$ArrayLength = 15
-		$ProductKey = ""
-
-		#These are the valid chars for a product key
-		$CharArray = @("B", "C", "D", "F", "G", "H", "J", "K", "M", 
-			"P", "Q", "R", "T", "V", "W", "X", "Y", "2", "3", "4", "6", "7", "8", "9")
-	}
-
-	Process {
-		$OS = Get-CimInstance -ClassName Win32_OperatingSystem | Select-Object -ExpandProperty Version
-		$Major = [System.Int32]::Parse($OS.Split(".")[0])
-
-		#Product Id is also part of they DigitalProductId byte array from position 8 to 30, it can be converted back using
-		#[System.Text.Encoding]::ASCII.GetString($Bytes) by converting the bytes to ASCII or Unicode
-		$ProductId = Get-ItemProperty -Path $RegPath -Name "ProductId" | Select-Object -ExpandProperty "ProductId"
-
-		#If the OS is Server 2008 or later, the registry key is DigitalProductId4
-		if ($Major -gt 5) {
-			$RegKey += "4"
-		}
-	
-		$Bytes = Get-ItemProperty -Path $RegPath -Name $RegKey | Select-Object -ExpandProperty $RegKey
-
-		for ($i = 24; $i -ge 0; $i--) 
-		{
-			$k = 0
-        
-			for ($j = $ByteArrayStart + $ArrayLength - 1; $j -ge $ByteArrayStart; $j--) 
-			{
-				$k = $k * 256 -bxor $Bytes[$j]
-				$Bytes[$j] = [math]::truncate($k / 24)
-				$k = $k % 24
-			}
-	
-			$ProductKey = $CharArray[$k] + $ProductKey
-
-			if (($i % 5 -eq 0) -and ($i -ne 0)) 
-			{
-				$ProductKey = "-" + $ProductKey
-			}
-		}
-
-		$BiosOEMKey = Get-CimInstance -Namespace $Namespace -ClassName $SWService | Select-Object -ExpandProperty $OEMProdKey
-
-		Write-Output -InputObject (New-Object -TypeName System.Management.Automation.PSObject -Property @{
-			"BIOSOEMKey" = $BiosOEMKey
-			"ProductKey" = $ProductKey
-			"ProductId" = $ProductId
-			"OSVersion" = $OS
-			"ComputerName" = $env:COMPUTERNAME
-		})
-	}
-
-	End {		
-	}
-}
-
-Function Set-CertificatePrivateKeyAccess {
-	<#
-		.SYNOPSIS
-			Provides access to certificates for a specific user.
-
-		.DESCRIPTION
-			The cmdlet grants access to certificates stored in $env:ProgramData\Microsoft\Crypto\RSA\MachineKeys. The cmdlet can grant
-			Read, Read/Write, and Full control to either a specific certificate or the entire directory. The credentials used to run the cmdlet
-			must have the ability to set permissions on the files or directory.
-
-		.EXAMPLE
-			Set-CertificatePrivateKeyAccess -User "contoso\john.smith" -All
-
-			Grants john.smith full control access to all certificates.
-
-		.EXAMPLE
-			Set-CertificatePrivateKeyAccess -User "contoso\john.smith" -Thumbprint 00E811CCE0444D23A9A055F0FB6CEA576F880B89 -AccessLevel READ_WRITE
-
-			Grants john.smith read/write access to the certificate specified by the thumbprint.
-
-		.EXAMPLE
-			Set-CertificatePrivateKeyAccess -User "contoso\john.smith" -Subject CN=f366ac78-22c8-427e-9a4e-f5ffab31725e -AccessLevel READ
-
-			Grants john.smith read access to the certificate specified by the subject.
-
-		.PARAMETER User
-			The username that should have access.
-
-		.PARAMETER All
-			Specifies that the user should be granted access to all of the machine keys stored on the computer.
-
-		.PARAMETER Replace
-			Specifies that existing permissions for the user on the machine keys should be replaced with only the specified permissions.
-
-		.PARAMETER AccessLevel
-			The level of access the user should receive. This is either FULL_CONTROL, READ_WRITE, or READ.
-
-		.INPUTS
-			None
-
-		.OUTPUTS
-			None
-
-		.NOTES
-			AUTHOR: Michael Haken
-			LAST UPDATE: 11/14/2016
-	#>
-	[CmdletBinding(DefaultParameterSetName="Thumbprint")]
-    Param(
-        [Parameter(Mandatory=$true)]
-        [System.String]$User,
-        [Parameter(ParameterSetName="All",Mandatory=$true)]
-        [switch]$All,
-        [Parameter(ParameterSetName="All")]
-        [switch]$Replace,
-		[Parameter()]
-		[ValidateSet("FULL_CONTROL", "READ", "READ_WRITE")]
-		[System.String]$AccessLevel = "FULL_CONTROL"
-    )
-
-    DynamicParam {
-        [System.Management.Automation.RuntimeDefinedParameterDictionary]$ParamDictionary = New-Object -TypeName System.Management.Automation.RuntimeDefinedParameterDictionary
-
-        [System.Management.Automation.ParameterAttribute]$Attributes = New-Object -TypeName System.Management.Automation.ParameterAttribute
-        $Attributes.ParameterSetName = "Thumbprint"
-		$Attributes.ValueFromPipeline = $true
-        $Attributes.Mandatory = $true
-
-        $Prints = Get-ChildItem -Path "Cert:\LocalMachine\My" | Where-Object { $_.HasPrivateKey -eq $true } | Select-Object -ExpandProperty Thumbprint
-
-        [System.Management.Automation.ValidateSetAttribute]$ValidateSet = New-Object -TypeName System.Management.Automation.ValidateSetAttribute($Prints)
-        
-        $AttributeCollection = New-Object -TypeName System.Collections.ObjectModel.Collection[System.Attribute]
-        $AttributeCollection.Add($Attributes)
-        $AttributeCollection.Add($ValidateSet)
-
-        [System.Management.Automation.RuntimeDefinedParameter]$DynParam = New-Object -TypeName System.Management.Automation.RuntimeDefinedParameter("Thumbprint", [System.String], $AttributeCollection)
-        $ParamDictionary.Add("Thumbprint", $DynParam)
-
-        [System.Management.Automation.ParameterAttribute]$Attributes = New-Object -TypeName System.Management.Automation.ParameterAttribute
-        $Attributes.ParameterSetName = "Subject"
-		$Attributes.ValueFromPipeline = $true
-        $Attributes.Mandatory = $true
-
-        $Subjects = Get-ChildItem -Path "Cert:\LocalMachine\My" | Where-Object { $_.HasPrivateKey -eq $true } | Select-Object -ExpandProperty Subject
-
-        [System.Management.Automation.ValidateSetAttribute]$ValidateSet = New-Object -TypeName System.Management.Automation.ValidateSetAttribute($Subjects)
-        
-          
-        $AttributeCollection = New-Object -TypeName System.Collections.ObjectModel.Collection[System.Attribute]
-        $AttributeCollection.Add($Attributes)
-        $AttributeCollection.Add($ValidateSet)
-
-        [System.Management.Automation.RuntimeDefinedParameter]$DynParam = New-Object -TypeName System.Management.Automation.RuntimeDefinedParameter("Subject", [System.String], $AttributeCollection)
-        $ParamDictionary.Add("Subject", $DynParam)
-
-        Write-Output -InputObject $ParamDictionary
-    }
-
-    Begin {
-    }
-
-    Process {
-
-        $Account = New-Object -TypeName System.Security.Principal.NTAccount($User)
-
-		switch ($AccessLevel) {
-			"FULL_CONTROL" {
-				[System.Security.AccessControl.FileSystemRights]$Level = [System.Security.AccessControl.FileSystemRights]::FullControl
-			}
-			"READ_WRITE" {
-				[System.Security.AccessControl.FileSystemRights]$Level = ([System.Security.AccessControl.FileSystemRights]::Read -bor [System.Security.AccessControl.FileSystemRights]::Write )
-			}
-			"READ" {
-				[System.Security.AccessControl.FileSystemRights]$Level = [System.Security.AccessControl.FileSystemRights]::Read
-			}
-			default {
-				throw "Invalid access level specified."
-			}
-		}
-
-        switch ($PSCmdlet.ParameterSetName) {
-            "Thumbprint" {
-                [System.Security.Cryptography.X509Certificates.X509Certificate2]$Cert = Get-Item -Path "Cert:\LocalMachine\My\$($PSBoundParameters["Thumbprint"])"
-
-				if ($Cert.HasPrivateKey()) {
-					$Path = "$($env:ProgramData)\Microsoft\Crypto\RSA\MachineKeys\$($Cert.PrivateKey.CspKeyContainerInfo.UniqueKeyContainerName)"
-					[System.Security.AccessControl.InheritanceFlags[]]$Inheritance = @([System.Security.AccessControl.InheritanceFlags]::None)
-				}
-				else {
-					throw "A certificate without a private key was selected."
-				}
-                break
-            }
-            "Subject" {
-                [System.Security.Cryptography.X509Certificates.X509Certificate2]$Cert = Get-ChildItem -Path "Cert:\LocalMachine\My" | Where-Object {$_.Subject -eq $PSBoundParameters["Subject"]} | Select-Object -First 1
-				if ($Cert.HasPrivateKey()) {
-					$Path = "$($env:ProgramData)\Microsoft\Crypto\RSA\MachineKeys\$($Cert.PrivateKey.CspKeyContainerInfo.UniqueKeyContainerName)"
-					[System.Security.AccessControl.InheritanceFlags[]]$Inheritance = @([System.Security.AccessControl.InheritanceFlags]::None)
-				}
-				else {
-					throw "A certificate without a private key was selected."
-				}
-                break
-            }
-            "All" {
-                $Path = "$($env:ProgramData)\Microsoft\Crypto\RSA\MachineKeys"
-                [System.Security.AccessControl.InheritanceFlags[]]$Inheritance = @([System.Security.AccessControl.InheritanceFlags]::ContainerInherit, [System.Security.AccessControl.InheritanceFlags]::ObjectInherit)
-                break
-            }
-            default {
-                throw "Could not determine parameter set name"
-            }
-        }
-
-        #Provide access to Subfolders and files
-        [System.Security.AccessControl.FileSystemAccessRule]$AccessRule = New-Object -TypeName System.Security.AccessControl.FileSystemAccessRule(
-            $Account.Translate([System.Security.Principal.SecurityIdentifier]),
-            $Level,
-            $Inheritance,
-            [System.Security.AccessControl.PropagationFlags]::InheritOnly,
-            [System.Security.AccessControl.AccessControlType]::Allow
-        )
-
-		Set-FileSecurity -AccessRules @($AccessRule) -Path $Path -ReplaceRulesForUser:$Replace -ForceChildInheritance:$All
-    }
-    
-    End {
-    }
-}
-
-Function New-GptVolume {
-	<#
-		.SYNOPSIS
-			Creates a formatted GPT partition and volume on the specified disk.
-
-		.DESCRIPTION
-			The cmdlet cleans, initializes to GPT, partitions using all available disk space, and creates an NTFS volume on the partition.
-
-			It is essentially a shortcut/convenience cmdlet for the common task that used to be performed with DIKSPART.
-
-		.EXAMPLE
-			Get-Disk -Number 1 | New-GptVolume
-
-			Creates a GPT NTFS formatted volume on Disk 1 and auto assigns it a drive letter.
-
-		.EXAMPLE
-			New-GptVolume -DiskNumber 2 -DriveLetter G -Confirm
-
-			Creates a new GPT NTFS formatted volume on Disk 2 and assigns it a drive letter of G.
-
-		.PARAMETER DiskNumber
-			The disk number of the disk to partition and format.
-
-		.PARAMETER InputObject
-			The MSFT_Disk CIM object to partition and format.
-
-		.PARAMETER DriveLetter
-			The letter to assign to the new volume. If this is not specified, a letter is auto assigned.
-
-		.PARAMETER Confirm
-			Prompts you for confirmation before running the cmdlet.
-
-		.INPUTS
-			[Microsoft.Management.Infrastructure.CimInstance#ROOT/Microsoft/Windows/Storage/MSFT_Disk]
-
-		.OUTPUTS
-			None
-
-		.NOTES
-			AUTHOR: Michael Haken
-			LAST UPDATE: 1/4/2017
-	#>
-	[CmdletBinding(DefaultParameterSetName = "Number", ConfirmImpact = "High", SupportsShouldProcess = $true)]
-	Param(
-		[Parameter(Mandatory = $true, ParameterSetName = "Number", ValueFromPipeline = $true)]
-		[System.Int32]$DiskNumber,
-
-		[Parameter(Mandatory = $true, ParameterSetName = "Input", ValueFromPipeline = $true)]
-		[Microsoft.Management.Infrastructure.CimInstance]
-        [PSTypeName("Microsoft.Management.Infrastructure.CimInstance#ROOT/Microsoft/Windows/Storage/MSFT_Disk")]
-		$InputObject,
-
-		[Parameter()]
-		[ValidatePattern("[d-zD-Z]")]
-		[System.Char]$DriveLetter,
-        
-        [Parameter()]
-        [Microsoft.Management.Infrastructure.CimSession]$CimSession
-	)
-
-	Begin {
-	}
-
-	Process {
-        if ($CimSession -eq $null)
-        {
-            $CimSession = New-CimSession
-        }
-
-		if ($PSCmdlet.ParameterSetName -eq "Number")
-		{
-			[Microsoft.Management.Infrastructure.CimInstance]$Disk = Get-Disk -Number $DiskNumber -CimSession $CimSession
-		}
-		else 
-		{
-			[Microsoft.Management.Infrastructure.CimInstance]$Disk = $InputObject
-		}
-
-        if ($PSCmdlet.ShouldProcess($Disk.UniqueId, "Clean, initialize, and format"))
-		{
-		    Set-Disk -Number $Disk.Number -IsOffline $false -CimSession $CimSession
-		    Set-Disk -Number $Disk.Number -IsReadOnly $false -CimSession $CimSession
-
-		    if ($Disk.PartitionStyle -ne "RAW")
-		    {
-			    Clear-Disk -InputObject $Disk -RemoveData -CimSession $CimSession -Confirm:$false
-		    }
-		
-		    Initialize-Disk -InputObject $Disk -PartitionStyle GPT -CimSession $CimSession -Confirm:$false
-            Stop-Service -Name ShellHWDetection -Force -Confirm:$false
-
-		    if ($PSBoundParameters.ContainsKey("DriveLetter") -and $DriveLetter -ne $null -and $DriveLetter -ne '')
-		    {
-			    New-Partition -DiskNumber $Disk.Number -UseMaximumSize -DriveLetter $DriveLetter -CimSession $CimSession | Format-Volume -FileSystem NTFS -CimSession $CimSession
-		    }
-		    else
-		    {
-			    New-Partition -DiskNumber $Disk.Number -UseMaximumSize -AssignDriveLetter -CimSession $CimSession | Format-Volume -FileSystem NTFS -CimSession $CimSession
-		    }
-
-            Start-Service -Name ShellHWDetection -Confirm:$false
-        }
-	}
-
-	End {
-
-	}
-}
-
-Function Where-NotMatchIn {
-    Param(
-        [Parameter(Position=0,ValueFromPipeline=$true)]
-        $Input,
-
-        [Parameter(Position=1)]
-        [string[]]$Matches,
-
-        [Parameter()]
-        [string]$Property = [System.String]::Empty
-    )
-
-    Begin {
-    }
-
-    Process {
-		
-
-        foreach($Item in $Input) {
-            $Match = $false
-
-            if ($Property -eq [System.String]::Empty) {
-                $Value = $Item
-            }
-            else {
-                $Value = $Item.$Property
-            }
-
-            foreach ($Matcher in $Matches) {
-				
-                if ($Value -like $Matcher) {
-                    $Match = $true
-                    break
-                }
-            }
-
-            if (!$Match) {
-                Write-Output -InputObject $Item
-            }
-        }
-    }
-
-    End {       
-    }
-}
-
-Function Get-AccountSid {
-	<#
-		.SYNOPSIS
-			Gets the SID of a given username.
-
-		.DESCRIPTION
-			The cmdlet gets the SID of a username, which could a service account, local account, or domain account. The cmdlet returns null if the username could not be translated.
-
-		.PARAMETER UserName
-			The name of the user or service account to get the SID of.
-
-		.PARAMETER ComputerName
-			If the account is local to another machine, such as an NT SERVICE account or a true local account, specify the computer name the account is on.
-
-		.PARAMETER Credential
-			The credentials used to connect to the remote machine.
-			
-		.INPUTS
-			None
-
-		.OUTPUTS
-			System.Security.Principal.SecurityIdentifier
-
-        .EXAMPLE
-			Get-AccountSid -UserName "Administrator"
-
-			Gets the SID for the Administrator account.
-
-		.EXAMPLE
-			Get-AccountSid -UserName "NT AUTHORITY\Authenticated Users"
-
-			Gets the SID for the Authenticated Users group.
-
-		.EXAMPLE
-			Get-AccountSid -UserName "NT AUTHORITY\System"
-
-			Gets the SID for the SYSTEM account. The user name could also just be "System".
-
-		.EXAMPLE
-			Get-AccountSid -UserName "NT SERVICE\MSSQLSERVER" -ComputerName SqlServer
-
-			Gets the SID for the virtual MSSQLSERVER service principal.
-
-		.NOTES
-			AUTHOR: Michael Haken
-			LAST UPDATE: 2/23/2017
-	#>
-	[CmdletBinding()]
-	Param(
-		[Parameter(Position=0,Mandatory=$true,ValueFromPipeline=$true)]
-		[ValidateNotNullOrEmpty()]
-		[System.String]$UserName,
-
-		[Parameter(Position=1)]
-		[ValidateNotNull()]
-		[System.String]$ComputerName = [System.String]::Empty,
-
-		[Parameter()] 
-		[ValidateNotNull()]
-		[System.Management.Automation.PSCredential]
-		[System.Management.Automation.Credential()]
-		$Credential = [System.Management.Automation.PSCredential]::Empty  
-	)
-
-	Begin {	
-	}
-
-	Process{
-		Write-Verbose "Getting SID for $UserName."
-
-		[System.String]$Domain = [System.String]::Empty
-		[System.String]$Name = [System.String]::Empty
-
-		if ($UserName.IndexOf("\") -ne -1) 
-		{
-			[System.String[]]$Parts = $UserName.Split("\")
-			$Domain = $Parts[0]
-
-			#If the UserName is something like .\john.doe, change the computer name
-			if ($Domain -iin $script:LocalNames)
-			{
-				#Use an empty string for the domain name on the local computer
-				$Domain = [System.String]::Empty
-			}
-
-			$Name = $Parts[1]			
-		}
-		elseif ($UserName.IndexOf("@") -ne -1) 
-		{
-			[System.String[]]$Parts = $UserName.Split("@")
-			$Domain = $Parts[1]
-			$Name = $Parts[0]
-		}
-		else 
-		{
-			try 
-			{
-				$Domain = Get-ADDomain -Current LocalComputer -ErrorAction Stop | Select-Object -ExpandProperty Name
-			}
-			catch [Exception] 
-			{
-				#Use an empty string for the domain name on the local computer
-				$Domain = [System.String]::Empty
-			}
-
-			$Name = $UserName
-		}
-
-		if ([System.String]::IsNullOrEmpty($ComputerName) -or $ComputerName -iin $script:LocalNames) 
-		{
-			try 
-			{
-				$User = New-Object -TypeName System.Security.Principal.NTAccount($Domain, $Name)
-				$UserSid = $User.Translate([System.Security.Principal.SecurityIdentifier])
-			}
-			catch [Exception]
-			{
-				Write-Verbose -Message "Exception translating $Domain\$Name`: $($_.Exception.Message)"
-				$UserSid = $null
-			}
-		}
-		else 
-		{
-			$Session = New-PSSession -ComputerName $ComputerName -Credential $Credential
-				
-			$UserSid = Invoke-Command -Session $Session -ScriptBlock { 
-				try
-				{
-					$User = New-Object -TypeName System.Security.Principal.NTAccount($args[0], $args[1])
-					Write-Output -InputObject $User.Translate([System.Security.Principal.SecurityIdentifier])
-				}
-				catch [Exception]
-				{
-					Write-Verbose -Message "Exception translating $($args[0])\$($args[1]): $($_.Exception.Message)"
-					Write-Output -InputObject $null
-
-				}
-			} -ArgumentList @($Domain, $Name)
-
-			Remove-PSSession -Session $Session
-		}
-		
-		Write-Output -InputObject $UserSid
-	}
-
-	End {		
-	}
-}
-
-Function Get-AccountTranslatedNTName {
-	<#
-		.SYNOPSIS
-			Gets the full NT Account name of a given username.
-
-		.DESCRIPTION
-			The cmdlet gets the SID of a username, which could a service account, local account, or domain account and then translates that to an NTAccount. The cmdlet returns null if the username
-			could not be translated.
-
-		.PARAMETER UserName
-			The name of the user or service account to get the SID of.
-
-		.PARAMETER ComputerName
-			If the account is local to another machine, such as an NT SERVICE account or a true local account, specify the computer name the account is on.
-
-		.PARAMETER Credential
-			The credentials used to connect to the remote machine.
-			
-		.INPUTS
-			None
-
-		.OUTPUTS
-			System.Security.Principal.SecurityIdentifier
-
-        .EXAMPLE
-			Get-AccountTranslatedNTName -UserName "Administrator"
-
-			Gets the NT account name for the Administrator account, which is BUILTIN\Administrator.
-
-		.EXAMPLE
-			Get-AccountTranslatedNTName -UserName "Authenticated Users"
-
-			Gets the NT account name for the Authenticated Users group, which is NT AUTHORITY\Authenticated Users.
-
-		.EXAMPLE
-			Get-AccountTranslatedNTName -UserName "System"
-
-			Gets the NT account name for the SYSTEM account, which is NT AUTHORITY\System
-
-		.EXAMPLE
-			Get-AccountSid -UserName "MSSQLSERVER" -ComputerName SqlServer
-
-			Gets the NT account name for the virtual MSSQLSERVER service principal, which is NT SERVICE\MSSQLSERVER.
-
-		.NOTES
-			AUTHOR: Michael Haken
-			LAST UPDATE: 2/23/2017
-	#>
-	[CmdletBinding()]
-	Param(
-		[Parameter(Position=0,Mandatory=$true,ValueFromPipeline=$true)]
-		[ValidateNotNullOrEmpty()]
-		[System.String]$UserName,
-
-		[Parameter(Position=1)]
-		[ValidateNotNull()]
-		[System.String]$ComputerName = [System.String]::Empty,
-
-		[Parameter()] 
-		[ValidateNotNull()]
-		[System.Management.Automation.PSCredential]
-		[System.Management.Automation.Credential()]
-		$Credential = [System.Management.Automation.PSCredential]::Empty  
-	)
-
-	Begin {	
-	}
-
-	Process{
-		Write-Verbose "Getting NT Account for $UserName."
-
-		[System.Security.Principal.SecurityIdentifier]$UserSid = Get-AccountSid -UserName $UserName.Trim() -ComputerName $ComputerName -Credential $Credential
-
-		[System.String]$NTName = [System.String]::Empty
-
-		if ($UserSid -ne $null)
-		{
-			if ([System.String]::IsNullOrEmpty($ComputerName) -or $ComputerName -iin $script:LocalNames) 
-			{
-				try
-				{
-					[System.Security.Principal.NTAccount]$NTAccount = $UserSid.Translate([System.Security.Principal.NTAccount])
-					$NTName = $NTAccount.Value.Trim()
-				}
-				catch [Exception]
-				{
-					Write-Verbose -Message "Exception translating SID $($UserSid.Value) for $UserName to NTAccount: $($_.Exception.Message)"
-					$NTName = $null
-				}
-			}
-			else 
-			{
-				$Session = New-PSSession -ComputerName $ComputerName -Credential $Credential
-				
-				$NTName = Invoke-Command -Session $Session -ScriptBlock { 
-					try
-					{
-						[System.Security.Principal.NTAccount]$NTAccount = ([System.Security.Principal.SecurityIdentifier]$args[0]).Translate([System.Security.Principal.NTAccount])
-						Write-Output -InputObject $NTAccount.Value.Trim()
-					}
-					catch [Exception]
-					{
-						Write-Verbose -Message "Exception translating SID $($args[0].Value) to NTAccount: $($_.Exception.Message)"
-						Write-Output -InputObject $null
-					}
-				} -ArgumentList @($UserSid)
-
-				Remove-PSSession -Session $Session
-			}
-		}
-		else
-		{
-			$NTName = $null
-		}
-
-		Write-Output -InputObject $NTName
-	}
-
-	End {		
-	}
-}
-
-Function Convert-SecureStringToString {
-	<#
-		.SYNOPSIS
-			The cmdlet converts a secure string to standard string.
-
-		.DESCRIPTION
-			The cmdlet converts a secure string to standard string.
-
-		.PARAMETER SecureString
-			The secure string to convert to a standard string
-
-		.INPUTS
-			System.Security.SecureString
-		
-		.OUTPUTS
-			System.String
-
-		.EXAMPLE 
-			Convert-SecureStringToString -SecureString (ConvertTo-SecureString -String "test" -AsPlainText -Force)
-
-			Converts the secure string created from the text "test" back to plain text.
-
-		.NOTES
-			AUTHOR: Michael Haken
-			LAST UPDATE: 6/21/2017
-	#>
-	[CmdletBinding()]
-    Param(
-        [Parameter(Position = 0, ValueFromPipeline = $true, Mandatory = $true)]
-        [System.Security.SecureString]$SecureString
-    )
-
-    Begin {}
-
-    Process { 
-        [System.String]$PlainText = [System.String]::Empty
-        [System.IntPtr]$IntPtr = [System.IntPtr]::Zero
-
-        try 
-        {     
-            $IntPtr = [System.Runtime.InteropServices.Marshal]::SecureStringToGlobalAllocUnicode($SecureString)     
-            $PlainText = [System.Runtime.InteropServices.Marshal]::PtrToStringUni($IntPtr)   
-        }   
-        finally 
-        {     
-            if ($IntPtr -ne $null -and $IntPtr -ne [System.IntPtr]::Zero) 
-			{       
-                [System.Runtime.InteropServices.Marshal]::ZeroFreeGlobalAllocUnicode($IntPtr)     
-            }   
-        }
-
-		Write-Output -InputObject $PlainText
-    }
-
-    End {      
-    }
-}
-
-Function Get-LocalGroupMembers {
-	<#
-		.SYNOPSIS
-			Gets the members of a local group
-
-		.DESCRIPTION
-			This cmdlet gets the members of a local group on the local or a remote system. The values are returned as DirectoryEntry values in the format WinNT://Domain/Name.
-
-		.PARAMETER LocalGroup
-			The local group on the computer to enumerate.
-
-		.PARAMETER ComputerName
-			The name of the computer to query. This defaults to the local computer.
-
-		.INPUTS
-			None
-
-		.OUTPUTS
-			System.String[]
-
-        .EXAMPLE
-			Get-LocalGroupMembers -LocalGroup Administrators 
-
-			Gets the membership of the local administrators group on the local machine.
-
-		.NOTES
-			AUTHOR: Michael Haken
-			LAST UPDATE: 8/25/2016
-	#>  
-	[CmdletBinding()]
-	Param(
-		[Parameter(Mandatory=$true, Position=0)]
-		[System.String]$LocalGroup,		
-
-		[Parameter(Position=1)]
-		[System.String]$ComputerName = $env:COMPUTERNAME
-	)
-
-	Begin {
-	}
-
-	Process {
-		if ([System.String]::IsNullOrEmpty($ComputerName))
-		{
-			$ComputerName = $env:COMPUTERNAME
-		}
-
-		$Group = [ADSI]"WinNT://$ComputerName/$LocalGroup,group"	
-									
-		$Members = $Group.Invoke("Members", $null) | Select-Object @{Name = "Name"; Expression = {$_[0].GetType().InvokeMember("ADSPath", "GetProperty", $null, $_, $null)}} | Select-Object -ExpandProperty Name				
-
-		Write-Output -InputObject $Members
-	}
-
-	End {		
-	}
-}
-
-Function Add-DomainMemberToLocalGroup {
-	<#
-		.SYNOPSIS
-			Adds a domain user or group to a local group.
-
-		.DESCRIPTION
-			This cmdlet adds a domain user or group to a local group on a specified computer. The cmdlet returns true if the member is added or is already a member of the group.
-
-			The cmdlet uses the current computer domain to identify the domain member.
-
-		.PARAMETER LocalGroup
-			The local group on the computer that will have a member added.
-
-		.PARAMETER Member
-			The domain user or group to add.
-
-		.PARAMETER MemberType
-			The type of the domain member, User or Group. This defaults to User.
-
-		.PARAMETER ComputerName
-			The name of the computer on which to add the local group member. This defaults to the local computer.
-
-		.INPUTS
-			None
-
-		.OUTPUTS
-			System.Boolean
-
-        .EXAMPLE
-			Add-DomainMemberToLocalGroup -LocalGroup Administrators -Member "Exchange Trusted Subsystem" -MemberType Group
-
-			Adds the domain group to the local administrators group on the local machine.
-
-		.NOTES
-			AUTHOR: Michael Haken
-			LAST UPDATE: 8/25/2016
-	#>  
-	[CmdletBinding()]
-	Param(
-		[Parameter(Mandatory=$true,Position=0)]
-		[System.String]$LocalGroup,
-
-		[Parameter(Mandatory=$true,Position=1)]
-		[System.String]$Member,
-
-		[Parameter(Position=2)]
-		[ValidateSet("Group", "User")]
-		[System.String]$MemberType = "User",
-
-		[Parameter(Position=3)]
-		[System.String]$ComputerName = $env:COMPUTERNAME
-	)
-
-	Begin {
-	}
-
-	Process {
-		$Success = $false
-
-		if ([System.String]::IsNullOrEmpty($ComputerName))
-		{
-			$ComputerName = $env:COMPUTERNAME
-		}
-
-		$Domain = Get-CimInstance -ClassName Win32_ComputerSystem -Property Domain | Select-Object -ExpandProperty Domain
-		$Domain = $Domain.Substring(0, $Domain.IndexOf("."))
-
-		$Group = [ADSI]"WinNT://$ComputerName/$LocalGroup,group"	
-		
-		if ($Group.Path -ne $null)	
-		{					
-			$Members = $Group.Invoke("Members", $null) | Select-Object @{Name = "Name"; Expression = {$_[0].GetType().InvokeMember("ADSPath", "GetProperty", $null, $_, $null)}} | Select-Object -ExpandProperty Name		
-			$NewMember = [ADSI]"WinNT://$Domain/$Member,$MemberType"
-							
-			$Path = $NewMember.Path.Remove($NewMember.Path.LastIndexOf(","))
-			
-			if ($Members -inotcontains $Path)
-			{
-				try {
-					$Group.Add($NewMember.Path)
-					Write-Verbose -Message "Successfully added $Member to $($Group.Name)"
-					$Success = $true
-				}
-				catch [Exception] {
-					Write-Error -Message $_.Exception.Message
-				}
-			}
-			else
-			{
-				Write-Verbose -Message "$($NewMember.Name) already a member of $($Group.Name)."
-				$Success = $true
-			}
-		}
-		else
-		{
-			Write-Verbose -Message "$LocalGroup local group could not be found."
-		}
-
-		Write-Output -InputObject $Success
-	}
-
-	End {
-		
-	}
-}
-
-Function Get-PSExecutionPolicy {
-	<#
-		.SYNOPSIS
-			Gets the current PowerShell script execution policy for the computer.
-
-		.DESCRIPTION
-			Retrieves the execution policy from HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell.
-
-		.INPUTS
-			None
-
-		.OUTPUTS
-			System.String
-
-        .EXAMPLE
-			Get-PSExecutionPolicy
-
-			This might return "Unrestricted" or "Bypass".
-
-		.NOTES
-			AUTHOR: Michael Haken
-			LAST UPDATE: 8/24/2016
-	#>
-	[CmdletBinding()]
-	Param(
-	)
-
-	Begin {}
-
-	Process 
-	{       
-		$PSPolicy= Get-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell" -Name ExecutionPolicy -ErrorAction SilentlyContinue
-
-        if (![System.String]::IsNullOrEmpty($PSPolicy)) 
-		{
-            Write-Log -Message "PowerShell Execution Policy is set to $($PSPolicy.ExecutionPolicy) through GPO" -Level WARNING
-        }
-        else 
-		{
-            Write-Log -Message "PowerShell Execution Policy not configured through GPO" -Level VERBOSE
-        }
-
-		Write-Output -InputObject $PSPolicy
-	}
-
-	End {		
-	}
-}
-
-Function Test-PendingReboots {
-	<#
-		.SYNOPSIS
-			Determines if there are any pending reboot operations.
-
-		.DESCRIPTION
-			This cmdlet checks pending reboots from Windows Update, File Rename Operations, Computer Renaming, SCCM, and Component Based Servicing.
-
-		.INPUTS
-			None
-
-		.OUTPUTS
-			System.Boolean
-
-        .EXAMPLE
-			Test-PendingReboots
-
-			Returns true if there are pending reboots or false otherwise.
-
-		.NOTES
-			AUTHOR: Michael Haken
-			LAST UPDATE: 8/24/2016
-	#>
-	[CmdletBinding()]
-	Param(
-	)
-
-	Begin {		
-	}
-
-	Process {
-		$CbsReboot = $false
-		$SccmReboot = $false
-
-		$OSBuild = Get-CimInstance -Class Win32_OperatingSystem -Property BuildNumber -ErrorAction SilentlyContinue | Select-Object -ExpandProperty BuildNumber
-		
-		$WindowsUpdateReboot = Test-Path -Path "HKLM:\\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired"
-
-		#if OS is Vista/2008 or greater
-		if ([System.Int32]$OSBuild -ge 6001)
-		{
-			$CbsReboot = (Get-ChildItem -Path "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Component Based Servicing" | Select-Object -ExpandProperty Name | Where-Object {$_ -contains "RebootPending"}) -ne $null
-		}
-
-		$FileRename = Get-ItemProperty -Path "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Session Manager" -Name "PendingFileRenameOperations" -ErrorAction SilentlyContinue
-
-		$FileNameReboot = ($FileName -ne $null)
-
-		$ComputerRenameReboot = (Get-ItemProperty -Path "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\ComputerName\\ActiveComputerName" -Name ComputerName -ErrorAction SilentlyContinue | Select-Object -ExpandProperty ComputerName) -ne 
-			(Get-ItemProperty -Path "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\ComputerName\\ComputerName" -Name ComputerName -ErrorAction SilentlyContinue | Select-Object -ExpandProperty ComputerName)
-
-		try
-		{
-			$SccmClientSDK = Invoke-CimMethod -ClassName CCM_ClientUtilities -MethodName "DetermineIfRebootPending" -Namespace "ROOT\\ccm\\ClientSDK" -ErrorAction Stop
-			$SccmReboot = ($SccmClientSDK.IsHardRebootPending -or $SccmClientSDK.RebootPending)
-		}
-		catch [Exception] {}
-
-		$Reboots = @{"Component Based Servicing" = $CbsReboot; "File Rename" = $FileNameReboot; "Computer Rename" = $ComputerRenameReboot; "Windows Update" = $WindowsUpdateReboot; "SCCM" = $SccmReboot}
-
-		$Reboots.GetEnumerator() | Where-Object {$_.Value -eq $true} | ForEach-Object {
-			Write-Log -Message "Pending reboot for $($_.Name)." -Level "VERBOSE"
-		}
-
-		Write-Output ($Reboots.ContainsValue($true))
-	}
-
-	End {		
-	}
-}
-
-Function Test-Credentials {
-	<#
-		.SYNOPSIS
-			Validates a set of credentials.
-
-		.DESCRIPTION
-			This cmdlet takes a set of credentials and validates them against Active Directory.
-
-		.PARAMETER EncryptedPassword
-			An encrypted string representing the password. This string should be encrypted using the ConvertFrom-SecureString cmdlet under the current user's context.
-
-		.PARAMETER UserName
-			The name of the user account. This can be specified as either DOMAIN\UserName or just as UserName and the domain will default to the current user domain.
-
-		.PARAMETER Password
-			An unencrypted string.
-
-		.PARAMETER Credential
-			A PSCredential object of the credentials to validate.
-
-		.INPUTS
-			None
-
-		.OUTPUTS
-			System.Boolean
-
-        .EXAMPLE
-			Test-Credentials -UserName administrator -Password MyP@$$w0rD
-
-			Validates the provided credentials using the current user domain.
-
-		.NOTES
-			AUTHOR: Michael Haken
-			LAST UPDATE: 8/24/2016
-	#>
-	[CmdletBinding(DefaultParameterSetName="Encrypted")]
-	Param(
-		[Parameter(Mandatory=$true, ParameterSetName="Encrypted")]
-		[System.String]$EncryptedPassword,
-
-		[Parameter(Mandatory=$true, ParameterSetName="Secure")]
-		[System.Security.SecureString]$Password,
-
-		[Parameter(Mandatory=$true, ParameterSetName="Encrypted")]
-		[Parameter(Mandatory=$true, ParameterSetName="Secure")]
-		[System.String]$UserName,
-
-		[Parameter(Mandatory=$true, ParameterSetName="Credential")]
-		[PSCredential]$Credential
-	)
-
-	Begin {		
-	}
-
-	Process {
-		$Result = $false
-
-		switch ($PSCmdlet.ParameterSetName) {
-			"Encrypted" {
-				$PlainTextPassword = Convert-SecureStringToString -SecureString (ConvertTo-SecureString -String $EncryptedPassword)
-				break
-			}
-			"Secure" {
-				$PlainTextPassword = Convert-SecureStringToString -SecureString $Password
-				break
-			}
-			"Credential" {
-				$UserName = $Credential.UserName
-				$PlainTextPassword = Convert-SecureStringToString -SecureString $Credential.Password
-				break
-			}		
-		}
-
-		if($UserName.Contains("\")) {
-            $Parts= $UserName.Split("\")
-            $Domain = $Parts[0]
-            $UserName= $Parts[1]
-        }
-        else {
-            $Domain = $env:USERDOMAIN
-        }
-
-		Write-Log -Message "Testing credentials for user $UserName in domain $Domain." -Level VERBOSE
-		[System.Reflection.Assembly]::LoadWithPartialName("System.DirectoryServices.AccountManagement") | Out-Null
-
-		[System.DirectoryServices.AccountManagement.PrincipalContext]$Context = New-Object -TypeName System.DirectoryServices.AccountManagement.PrincipalContext([System.DirectoryServices.AccountManagement.ContextType]::Domain, $Domain)
-
-		try 
-		{			
-			$Result = $Context.ValidateCredentials($UserName, $PlainTextPassword)			
-			Write-Log -Message "Provided credentials are valid : $Result" -Level VERBOSE
-		}
-		catch [Exception] 
-		{
-			Write-Log -Message "Error checking credentials."-Level WARNING
-			Write-Log -ErrorRecord $_ -Level WARNING
-		}
-		finally 
-		{
-			$Context.Dispose()
-		}
-
-		Write-Output -InputObject $Result
-    }
-
-	End {
-		
-	}
-}
-
-Function Write-Log {
-	<#
-		.SYNOPSIS
-			Writes to a log file and echoes the message to the console.
-
-		.DESCRIPTION
-			The cmdlet writes text or a PowerShell ErrorRecord to a log file and displays the log message to the console at the specified logging level.
-
-		.PARAMETER Message
-			The message to write to the log file.
-
-		.PARAMETER ErrorRecord
-			Optionally specify a PowerShell ErrorRecord object to include with the message.
-
-		.PARAMETER Level
-			The level of the log message, this is either INFO, WARNING, ERROR, DEBUG, or VERBOSE. This defaults to INFO.
-
-		.PARAMETER Path
-			The path to the log file. If this is not specified, the message is only echoed out.
-
-		.PARAMETER NoInfo
-			Specify to not add the timestamp and log level to the message being written.
-
-		.INPUTS
-			System.String
-
-				The log message can be piped to Write-Log
-
-		.OUTPUTS
-			None
-
-        .EXAMPLE
-			try {
-				$Err = 10 / 0
-			}
-			catch [Exception]
-			{
-				Write-Log -Message $_.Exception.Message -ErrorRecord $_ -Level ERROR
-			}
-
-			Writes an ERROR log about dividing by 0 to the default log path.
-
-		.EXAMPLE
-			Write-Log -Message "The script is starting"
-
-			Writes an INFO log to the default log path.
-
-		.NOTES
-			AUTHOR: Michael Haken
-			LAST UPDATE: 8/24/2016
-	#>
-	[CmdletBinding()]
-	Param(
-		[Parameter(Position = 2)]
-		[ValidateSet("INFO", "WARNING", "ERROR", "DEBUG", "VERBOSE")]
-		[System.String]$Level = "INFO",
-
-		[Parameter(Mandatory=$true, Position = 0, ValueFromPipeline = $true)]
-		[System.String]$Message,
-
-		[Parameter(Position = 1)]
-		[System.Management.Automation.ErrorRecord]$ErrorRecord,
-
-		[Parameter()]
-		[System.String]$Path,
-
-		[Parameter()]
-		[switch]$NoInfo
-	)
-
-	Begin {		
-	}
-
-	Process {
-		if ($ErrorRecord -ne $null) {
-			$Message += "`r`n"
-			$Message += ("Exception: `n" + ($ErrorRecord.Exception | Select-Object -Property * | Format-List | Out-String) + "`n")
-			$Message += ("Category: " + ($ErrorRecord.CategoryInfo.Category.ToString()) + "`n")
-			$Message += ("Stack Trace: `n" + ($ErrorRecord.ScriptStackTrace | Format-List | Out-String) + "`n")
-			$Message += ("Invocation Info: `n" + ($ErrorRecord.InvocationInfo | Format-List | Out-String))
-		}
-		
-		if ($NoInfo) {
-			$Content = $Message
-		}
-		else {
-			$Content = "$(Get-Date) : [$Level] $Message"
-		}
-
-		if ([System.String]::IsNullOrEmpty($Path))
-		{
-			$Path = [System.Environment]::GetEnvironmentVariable("LogPath", [System.EnvironmentVariableTarget]::Machine)
-		}
-
-		if (-not [System.String]::IsNullOrEmpty($Path)) 
-		{
-			try
-			{
-				Add-Content -Path $Path -Value $Content
-			}
-			catch [Exception]
-			{
-				Write-Warning -Message "Could not write to log file : $($_.Exception.Message)`n$Content"
-			}
-		}
-
-		switch ($Level) {
-			"INFO" {
-				Write-Host $Content
-				break
-			}
-			"WARNING" {
-				Write-Warning -Message $Content
-				break
-			}
-			"ERROR" {
-				Write-Error -Message $Content
-				break
-			}
-			"DEBUG" {
-				Write-Debug -Message $Content
-				break
-			}
-			"VERBOSE" {
-				Write-Verbose -Message $Content
-				break
-			}
-			default {
-				Write-Warning -Message "Could not determine log level to write."
-				Write-Host $Content
-				break
-			}
-		}
-	}
-
-	End {
-	}
-}
-
-Function Set-UAC {
-	<#
-		.SYNOPSIS
-			Sets the User Account Control to enabled or disabled.
-
-		.DESCRIPTION
-			This cmdlet sets the User Account Control to enabled or disabled.
-
-		.PARAMETER Enabled
-			Specify whether UAC should be enabled or disabled.
-
-		.INPUTS
-			Systyem.Boolean
-
-		.OUTPUTS
-			None
-
-        .EXAMPLE
-			Set-UAC -Enabled $false
-
-			Disables UAC.
-
-		.NOTES
-			AUTHOR: Michael Haken
-			LAST UPDATE: 8/24/2016
-	#>
-	[CmdletBinding()]
-	Param(
-		[Parameter(Mandatory=$true, ValueFromPipeline = $true, Position = 0)]
-		[System.Boolean]$Enabled
-	)
-    
-	Begin {		
-	}
-
-	Process {
-		Write-Log -Message "Setting User Account Control to Enabled = $Enabled." -Level VERBOSE
-        New-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name EnableLUA -Value ([Int32]$Enabled) -ErrorAction SilentlyContinue| out-null
-	}
-
-	End {}
-}
-
-Function Set-IEESC {
-	<#
-		.SYNOPSIS
-			Sets Internet Explorer Enhanced Security Configuration to enabled or disabled.
-
-		.DESCRIPTION
-			This cmdlet sets Internet Explorer Enhanced Security Configuration to enabled or disabled.
-
-		.PARAMETER Enabled
-			Specify whether IEESC should be enabled or disabled.
-
-		.INPUTS
-			Systyem.Boolean
-
-		.OUTPUTS
-			None
-
-        .EXAMPLE
-			Set-IEESC -Enabled $false
-
-			Disables IEESC.
-
-		.NOTES
-			AUTHOR: Michael Haken
-			LAST UPDATE: 8/24/2016
-	#>
-	[CmdletBinding()]
-	Param(
-		[Parameter(Mandatory=$true)]
-		[System.Boolean]$Enabled
-	)
-
-	Begin {}
-
-	Process {
-        Write-Log "Setting IE Enhanced Security Configuration to Enabled = $Enabled." -Level VERBOSE
-
-        $AdminKey = "HKLM:\SOFTWARE\Microsoft\Active Setup\Installed Components\{A509B1A7-37EF-4b3f-8CFC-4F3A74704073}"
-        $UserKey = "HKLM:\SOFTWARE\Microsoft\Active Setup\Installed Components\{A509B1A8-37EF-4b3f-8CFC-4F3A74704073}"
-
-        Set-ItemProperty -Path $AdminKey -Name "IsInstalled" -Value ([Int32]$Enabled)
-        Set-ItemProperty -Path $UserKey -Name "IsInstalled" -Value ([Int32]$Enabled)
-	}
-
-	End {}
-}
-
-Function Set-OpenFileSecurityWarning {
-	<#
-		.SYNOPSIS
-			Enables or disables file security warnings from items downloaded from the internet.
-
-		.DESCRIPTION
-			This cmdlet enables or disables file security warnings from items downloaded from the internet.
-
-		.PARAMETER Enable
-			Specify to enable the security warnings.
-
-		.PARAMETER Disable
-			Specify to disable the security warnings.
-
-		.INPUTS
-			None
-
-		.OUTPUTS
-			None
-
-        .EXAMPLE
-			Set-OpenFileSecurityWarning -Disable
-
-			Disables the security warning when opening files from the internet.
-
-		.NOTES
-			AUTHOR: Michael Haken
-			LAST UPDATE: 8/24/2016
-	#>
-	[CmdletBinding()]
-	Param(
-		[Parameter(Mandatory=$true, ParameterSetName="Enable")]
-		[switch]$Enable,
-
-		[Parameter(Mandatory=$true, ParameterSetName="Disable")]
-		[switch]$Disable	
-	)
-
-	Begin {}
-
-	Process {
-		if ($Enable) {
-			Write-Log -Message "Enabling File Security Warning dialog." -Level VERBOSE
-
-			Remove-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Associations" -Name "LowRiskFileTypes" -ErrorAction SilentlyContinue
-			Remove-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Attachments" -Name "SaveZoneInformation" -ErrorAction SilentlyContinue
-			Remove-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\Associations" -Name "LowRiskFileTypes" -ErrorAction SilentlyContinue
-			Remove-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\Attachments" -Name "SaveZoneInformation" -ErrorAction SilentlyContinue
-		}
-		elseif ($Disable) {
-			Write-Log -Message "Disabling File Security Warning dialog." -Level VERBOSE
-
-			New-Item -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Associations" -ErrorAction SilentlyContinue | Out-Null
-			New-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Associations" -Name "LowRiskFileTypes" -Value ".exe;.msp;.msu;.msi" -ErrorAction SilentlyContinue | Out-Null
-			New-Item -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Attachments" -ErrorAction SilentlyContinue | Out-Null
-			New-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Attachments" -Name "SaveZoneInformation" -Value 1 -ErrorAction SilentlyContinue | Out-Null
-			Remove-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\Associations" -Name "LowRiskFileTypes" -ErrorAction SilentlyContinue
-			Remove-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\Attachments" -Name "SaveZoneInformation" -ErrorAction SilentlyContinue
-		}
-	}
-
-	End {}
-}
-
-Function Get-LocalFQDNHostname {
-	<#
-		.SYNOPSIS
-			Gets the FQDN of the local host.
-
-		.DESCRIPTION
-			This cmdlet get the FQDN of the local host from DNS.
-
-		.INPUTS
-			None
-
-		.OUTPUTS
-			System.String
-
-        .EXAMPLE
-			Get-LocalFQDNHostname
-
-			Returns the local computer's FQDN.
-
-		.NOTES
-			AUTHOR: Michael Haken
-			LAST UPDATE: 8/24/2016
-	#>
-	[CmdletBinding()]
-	Param(
-	)
-
-	Begin {}
-
-	Process {
-		Write-Output -InputObject ([System.Net.Dns]::GetHostByName($env:COMPUTERNAME)).HostName
-	}
-
-	End {}
-}
-
-Function Set-Pagefile {
-	<#
-		.SYNOPSIS
-			Configures the size of the page file.
-
-		.DESCRIPTION
-			This cmdlet sets the page file to the specified size or a default, optimal size.
-
-		.PARAMETER InitialSize
-			The initial size of the page file. This defaults to the maximum size.
-
-		.PARAMETER MaximumSize
-			The maximum size of the page file. This defaults to the computer system's RAM plus 10MB up to a size of 32GB + 10MB as both the initial and maximum size.
-
-		.INPUTS 
-			System.Int32
-
-		.OUTPUTS
-			None
-
-        .EXAMPLE
-			Set-Pagefile
-
-			Sets the page file size manually.
-
-		.NOTES
-			AUTHOR: Michael Haken
-			LAST UPDATE: 8/24/2016
-	#>
-	[CmdletBinding()]
-	Param(
-		[Parameter(Position = 1)]
-		[System.Int32]$InitialSize = -1,
-
-		[Parameter(Position = 0, ValueFromPipeline = $true)]
-		[System.Int32]$MaximumSize = -1
-	)
-
-	Begin {}
-
-	Process {
-		[System.Int32]$ProductType = Get-CimInstance -ClassName Win32_OperatingSystem -Property ProductType | Select-Object -ExpandProperty ProductType
-
-		if ($ProductType -ne 1)
-		{
-			Write-Log -Message "Checking Pagefile Configuration" -Level VERBOSE
-			$CS = Get-CimInstance -ClassName Win32_ComputerSystem
-
-			if ($CS.AutomaticManagedPagefile -eq $true) {
-				Write-Log -Message "System configured to use Automatic Managed Pagefile, reconfiguring"
-
-				try {
-					$CS.AutomaticManagedPagefile = $false
-				
-					if ($MaximumSize -le 0)
-					{
-						# RAM + 10 MB, with maximum of 32GB + 10MB
-						$InstalledMem = $CS.TotalPhysicalMemory
-						$MaximumSize = (($InstalledMem + 10MB), (32GB+10MB) | Measure-Object -Minimum).Minimum / 1MB
-					}
-
-					if ($InitialSize -gt $MaximumSize -or $InitialSize -le 0)
-					{
-						$InitialSize = $MaximumSize
-					}
-
-					$CPF = Get-CimInstance -ClassName Win32_PageFileSetting
-					$CPF.InitialSize= $InitialSize
-					$CPF.MaximumSize= $MaximumSize
-					$CPF.Put() | Out-Null
-				}
-				catch [Exception] {
-					Write-Log -Message "Problem reconfiguring pagefile." -ErrorRecord $_ -Level WARNING
-				}
-
-				$CPF= Get-CimInstance -ClassName Win32_PageFileSetting
-				Write-Log -Message "Pagefile set to manual, initial/maximum size: $($CPF.InitialSize)MB / $($CPF.MaximumSize)MB." -Level VERBOSE
-			}
-			else {
-				Write-Log -Message "Manually configured page file, skipping configuration" -Level VERBOSE
-			}
-		}
-		else
-		{
-			Write-Log -Message "Page file settings are only available on the Server operating system." -Level WARNING
-		}
-	}
-	
-	End {
-	}
-}
-
-Function Set-HighPerformancePowerPlan {
-	<#
-		.SYNOPSIS
-			Enables the high performance power plan on the computer.
-
-		.DESCRIPTION
-			This cmdlet sets the active power plan to the High Performance setting.
-
-		.INPUTS
-			None
-
-		.OUTPUTS
-			None
-
-        .EXAMPLE
-			Set-HighPerformancePowerPlan
-
-			Sets the High Performance plan to active.
-
-		.NOTES
-			AUTHOR: Michael Haken
-			LAST UPDATE: 8/24/2016
-	#>
-	[CmdletBinding()]
-	Param(
-		[Parameter()]
-		[switch]$PassThru
-	)
-
-	Begin {}
-
-	Process {
-        Write-Log -Message "Configuring Power Plan" -Level VERBOSE
-
-        $PowerPlan = Get-CimInstance -Name root\cimv2\power -ClassName Win32_PowerPlan -Filter "ElementName = 'High Performance'"          
-        $Temp = Invoke-CimMethod -InputObject $PowerPlan -MethodName Activate        
-        $CurrentPlan = Get-CimInstance -Namespace root\cimv2\power -ClassName Win32_PowerPlan | Where-Object { $_.IsActive }
-
-        Write-Log -Message "Power Plan active: $($CurrentPlan.ElementName)" -Level VERBOSE
-
-		if ($PassThru)
-		{
-			Write-Output -InputObject $CurrentPlan
-		}
-	}
-
-	End {}
-}
-
-Function Get-NETVersion {
-	<#
-		.SYNOPSIS
-			Gets the current version of .NET version 4 installed.
-
-		.DESCRIPTION
-			This cmdlet gets the current version of .NET version 4 installed from the registry at HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full.
-
-		.INPUTS
-			None
-
-		.OUTPUTS
-			System.Int
-
-        .EXAMPLE
-			Get-NETVersion
-
-			Retrieves the .NET version 4 specific version.
-
-		.NOTES
-			AUTHOR: Michael Haken
-			LAST UPDATE: 8/24/2016
-	#>
-    [CmdletBinding()]
-	Param(
-	)
-
-	Begin {}
-
-	Process {
-        $NetVersion = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full" -ErrorAction SilentlyContinue).Release
-        Write-Log -Message ".NET version installed is $NetVersion." -Level VERBOSE
-		Write-Output ([System.Int32]$NetVersion)
-    }
-
-	End {		
-	}
-}
-
-Function Set-NET461InstallBlock {
-	<#
-		.SYNOPSIS
-			Sets a temporary installation block for .NET version 4.6.1 (KB3133990) or disables the block.
-
-		.DESCRIPTION
-			This cmdlet sets a temporary installation block for .NET 4.6.1 which is sometimes needed is a program is not compatible with this version and you don't want it to be accidentally installed
-			through automatic updates. The cmdlet can also disable the block.
-
-		.PARAMETER Disable
-			This disables the block. If the parameter is not specified, the block is enabled.
-
-		.INPUTS
-			None
-
-		.OUTPUTS
-			None
-
-        .EXAMPLE
-			Set-NET461InstallBlock
-
-			Blocks the installation of .NET 4.6.1
-
-		.NOTES
-			AUTHOR: Michael Haken
-			LAST UPDATE: 8/24/2016
-	#>
-	[CmdletBinding()]
-	Param(
-		[Parameter()]
-		[switch]$Disable
-	)
-
-	Begin {}
-
-	Process {
-        Write-Log -Message "Set temporary installation block for .NET Framework 4.6.1 (KB3133990)." -Level VERBOSE
-        $RegKey = "HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\WU"
-        $RegName= "BlockNetFramework461"
-
-		if (-not $Disable)
-		{
-			if (!(Test-Path -Path $RegKey)) {
-				New-Item -Path "HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP" -Name "WU" | Out-Null
-			}
-
-			if ((Get-ItemProperty -Path $RegKey -Name $RegName -ErrorAction SilentlyContinue) -eq $null) {
-				New-ItemProperty -Path $RegKey -Name $RegName -Value 1 -PropertyType DWORD  | Out-Null
-			}
-			else {
-				Set-ItemProperty -Path $RegKey -Name $RegName -Value 1 | Out-Null
-			}
-
-			if ((Get-ItemProperty -Path $RegKey -Name $RegName -ErrorAction SilentlyContinue) -eq $null) {
-				Write-Log -Message "Unable to set registry key $RegKey\$RegName." -Level WARNING 
-			}
-		}
-		else
-		{
-			if (Test-Path -Path $RegKey) {				
-				if ((Get-ItemProperty -Path $RegKey -Name $RegName -ErrorAction SilentlyContinue) -eq $null) {
-					Remove-ItemProperty -Path $RegKey -Name $RegName | Out-Null
-				}
-
-				if ((Get-ItemProperty -Path $RegKey -Name $RegName -ErrorAction SilentlyContinue) -eq $null) {
-					Write-Log -Message "Unable to set registry key $RegKey\$RegName." -Level WARNING 
-				}
-			}
-		}
-    }
-
-	End {}
-}
-
 Function Start-ProcessWait {
 	<#
 		.SYNOPSIS
@@ -5864,8 +4926,12 @@ Function Start-ProcessWait {
 			LAST UPDATE: 8/24/2016
 	#>
 	[CmdletBinding()]
+	[OutputType()]
 	Param(
 		[Parameter(Mandatory=$true)]
+		[ValidateScript({
+			Test-Path -Path $_	
+		})]
 		[System.String]$FilePath,
 
 		[Parameter()]
@@ -5873,7 +4939,7 @@ Function Start-ProcessWait {
 		[System.String[]]$ArgumentList = @(),
 
 		[Parameter()]
-		[switch]$EnableLogging
+		[Switch]$EnableLogging
 	)
 
 	Begin {
@@ -5954,924 +5020,230 @@ Function Start-ProcessWait {
 	End {}
 }
 
-Function Get-FileVersion {
-	<#
-		.SYNOPSIS
-			Gets the version of a specific file or file running a Windows service from its metadata.
+Function Invoke-Using {
+    <#
+        .SYNOPSIS
+            Provides a C#-like using() block to automatically handle disposing IDisposable objects.
 
-		.DESCRIPTION
-			This cmdlet gets the FileVersion data from a specified file or file running a service. If no version is included in the FileInfo, the cmdlet returns "0".
+        .DESCRIPTION
+            The cmdlet takes an InputObject that should be an IDisposable, executes the ScriptBlock, then disposes the object.
 
-		.PARAMETER Path
-			The path to the file.
+        .PARAMETER InputObject
+            The object that needs to be disposed of after running the scriptblock.
 
-		.PARAMETER Service
-			The name of the service.
-
-		.INPUTS
-			None
-
-		.OUTPUTS
-			System.String
+        .PARAMETER ScriptBlock
+            The scriptblock to execute with the "using" variable.
 
         .EXAMPLE
-			Get-FileVersion -Path "c:\installer.exe"
+            Invoke-Using ([System.IO.StreamWriter]$Writer = New-Object -TypeName System.IO.StreamWriter([System.Console]::OpenStandardOutput())) {
+                $Writer.AutoFlush = $true
+                [System.Console]::SetOut($Writer)
+                $Writer.Write("This is a test.")
+            }
 
-			Gets the file version of installer.exe.
+            The StreamWriter is automatically disposed of after the script block is executed. Future calls to $Writer would fail. Please notice
+            that the open "{" bracket needs to be on the same line as the cmdlet.
+
+        .INPUTS
+            System.Management.Automation.ScriptBlock
+
+        .OUTPUTS
+            None
+
+        .NOTES
+            AUTHOR: Michael Haken
+			LAST UPDATE: 6/21/2017
+
+    #>
+	[Alias("using")]
+    [CmdletBinding()]
+	[OutputType()]
+    Param(
+        [Parameter(Mandatory = $true)]
+		[ValidateNotNull()]
+		[ValidateScript({
+			$_ -is [System.IDisposable]
+		})]
+        [System.Object]$InputObject,
+ 
+        [Parameter(Mandatory = $true, ValueFromPipeline = $true)]
+		[ValidateNotNull()]
+        [System.Management.Automation.ScriptBlock]$ScriptBlock
+    )
+    
+    Begin {
+    }
+    
+    Process 
+    {       
+        try
+        {
+            & $ScriptBlock
+        }
+        finally
+        {
+            if ($InputObject -ne $null)
+            {
+				$InputObject.Dispose()
+            }
+        }
+    }
+
+    End {
+    }
+}
+
+#endregion
+
+
+#region Certificates
+
+Function Set-CertificatePrivateKeyAccess {
+	<#
+		.SYNOPSIS
+			Provides access to certificates for a specific user.
+
+		.DESCRIPTION
+			The cmdlet grants access to certificates stored in $env:ProgramData\Microsoft\Crypto\RSA\MachineKeys. The cmdlet can grant
+			Read, Read/Write, and Full control to either a specific certificate or the entire directory. The credentials used to run the cmdlet
+			must have the ability to set permissions on the files or directory.
 
 		.EXAMPLE
-			Get-FileVersion -Service lmhosts
+			Set-CertificatePrivateKeyAccess -User "contoso\john.smith" -All
 
-			Gets the file version of the svchost.exe running the lmhosts service.
+			Grants john.smith full control access to all certificates.
+
+		.EXAMPLE
+			Set-CertificatePrivateKeyAccess -User "contoso\john.smith" -Thumbprint 00E811CCE0444D23A9A055F0FB6CEA576F880B89 -AccessLevel READ_WRITE
+
+			Grants john.smith read/write access to the certificate specified by the thumbprint.
+
+		.EXAMPLE
+			Set-CertificatePrivateKeyAccess -User "contoso\john.smith" -Subject CN=f366ac78-22c8-427e-9a4e-f5ffab31725e -AccessLevel READ
+
+			Grants john.smith read access to the certificate specified by the subject.
+
+		.PARAMETER User
+			The username that should have access.
+
+		.PARAMETER All
+			Specifies that the user should be granted access to all of the machine keys stored on the computer.
+
+		.PARAMETER Replace
+			Specifies that existing permissions for the user on the machine keys should be replaced with only the specified permissions.
+
+		.PARAMETER AccessLevel
+			The level of access the user should receive. This is either FULL_CONTROL, READ_WRITE, or READ.
+
+		.INPUTS
+			None
+
+		.OUTPUTS
+			None
 
 		.NOTES
 			AUTHOR: Michael Haken
-			LAST UPDATE: 8/24/2016
+			LAST UPDATE: 11/14/2016
 	#>
-	[CmdletBinding()]
-	Param(
-		[Parameter(Mandatory=$true,ParameterSetName="File",ValueFromPipeline = $true, Position = 0)]
-		[ValidateScript({Test-Path -Path $_})]
-		[System.String]$Path
-	)
+	[CmdletBinding(DefaultParameterSetName="Thumbprint")]
+	[OutputType()]
+    Param(
+        [Parameter(Mandatory = $true)]
+		[ValidateNotNullOrEmpty()]
+        [System.String]$User,
 
-	DynamicParam
-    {
+        [Parameter(ParameterSetName = "All", Mandatory = $true)]
+        [Switch]$All,
+
+        [Parameter(ParameterSetName = "All")]
+        [Switch]$Replace,
+
+		[Parameter()]
+		[ValidateSet("FULL_CONTROL", "READ", "READ_WRITE")]
+		[System.String]$AccessLevel = "FULL_CONTROL"
+    )
+
+    DynamicParam {
         [System.Management.Automation.RuntimeDefinedParameterDictionary]$ParamDictionary = New-Object -TypeName System.Management.Automation.RuntimeDefinedParameterDictionary
 
-		$Services = Get-Service | Select-Object -ExpandProperty Name
+		$Prints = Get-ChildItem -Path "Cert:\LocalMachine\My" | Where-Object { $_.HasPrivateKey -eq $true } | Select-Object -ExpandProperty Thumbprint
+		New-DynamicParameter -Name "Thumbprint" -ParameterSets "Thumbprint" -Type ([System.String]) -Mandatory -ValueFromPipeline -ValidateSet $Prints -RuntimeParameterDictionary $ParamDictionary | Out-Null
 
-		$ValidateSet = New-Object -TypeName System.Management.Automation.ValidateSetAttribute($Services)
+		$Subjects = Get-ChildItem -Path "Cert:\LocalMachine\My" | Where-Object { $_.HasPrivateKey -eq $true } | Select-Object -ExpandProperty Subject
+		New-DynamicParameter -Name "Subject" -ParameterSets "Subject" -Type ([System.String]) -Mandatory -ValueFromPipeline -ValidateSet $Subjects -RuntimeParameterDictionary $ParamDictionary | Out-Null
 
-		[System.Management.Automation.ParameterAttribute]$Attributes = New-Object -TypeName System.Management.Automation.ParameterAttribute
-		$Attributes.ParameterSetName = "Service"
-		$Attributes.Mandatory = $true
-		$Attributes.ValueFromPipeline = $true
-		$Attributes.Position = 0
-            
-		$AttributeCollection = New-Object -TypeName System.Collections.ObjectModel.Collection[System.Attribute]
-		$AttributeCollection.Add($Attributes)
-		$AttributeCollection.Add($ValidateSet)
+        return $ParamDictionary
+    }
 
-        [System.Management.Automation.RuntimeDefinedParameter]$DynParam = New-Object -TypeName System.Management.Automation.RuntimeDefinedParameter("ServiceName", [System.String], $AttributeCollection)
-        $ParamDictionary.Add("ServiceName", $DynParam)
+    Begin {
+    }
 
-		return $ParamDictionary
-	}
+    Process {
 
-	Begin {}
+        $Account = New-Object -TypeName System.Security.Principal.NTAccount($User)
 
-	Process {
-		switch ($PSCmdlet.ParameterSetName) {
-			"File" {
-				break
+		switch ($AccessLevel) {
+			"FULL_CONTROL" {
+				[System.Security.AccessControl.FileSystemRights]$Level = [System.Security.AccessControl.FileSystemRights]::FullControl
 			}
-			"Service" {
-				$Path = (Get-WmiObject -Class Win32_Service -Filter "Name = `"$($PSBoundParameters.ServiceName)`"" | Select-Object -ExpandProperty PathName).Trim("`"")
-				break
+			"READ_WRITE" {
+				[System.Security.AccessControl.FileSystemRights]$Level = ([System.Security.AccessControl.FileSystemRights]::Read -bor [System.Security.AccessControl.FileSystemRights]::Write )
+			}
+			"READ" {
+				[System.Security.AccessControl.FileSystemRights]$Level = [System.Security.AccessControl.FileSystemRights]::Read
 			}
 			default {
-				throw "Could not determine parameter set name from given parameters."
+				throw "Invalid access level specified."
 			}
 		}
 
-		$Version = New-Object -TypeName System.IO.FileInfo($Path) | Select-Object -ExpandProperty VersionInfo | Select-Object -ExpandProperty FileVersion
+        switch ($PSCmdlet.ParameterSetName) {
+            "Thumbprint" {
+                [System.Security.Cryptography.X509Certificates.X509Certificate2]$Cert = Get-Item -Path "Cert:\LocalMachine\My\$($PSBoundParameters["Thumbprint"])"
 
-		if ([System.String]::IsNullOrEmpty($Version))
-		{
-			$Version = "0"
-		}
-
-		Write-Output -InputObject $Version
-	}
-
-	End {	
-	}
-}
-
-Function Disable-SSLv3 {
-	<#
-		.SYNOPSIS
-			Completely disables the use of SSLv3.
-
-		.DESCRIPTION
-			This cmdlet disables SSLv3 by use of both the client and server components.
-
-		.INPUTS
-			None
-
-		.OUTPUTS
-			None
-
-        .EXAMPLE
-			Disable-SSLv3
-
-			Disables SSLv3 on the system.
-
-		.NOTES
-			AUTHOR: Michael Haken
-			LAST UPDATE: 8/24/2016
-	#>
-	[CmdletBinding()]
-	Param(
-	)
-
-	Begin {
-		#Disable SSLv3 to protect against POODLE scan
-		$ServerRegKey = "HKLM:\System\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\SSL 3.0\Server"
-		$ClientRegKey = "HKLM:\System\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\SSL 3.0\Client"
-        $ServerRegName = "Enabled"
-		$ClientRegName = "DisabledByDefault"
-	}
-
-	Process {
-		Write-Log -Message "Disabling SSLv3 protocol."
-
-		if (!(Test-Path -Path $ServerRegKey)) {
-			New-Item -Path $ServerRegKey | Out-Null
-		}
-
-		New-ItemProperty -Path $ServerRegKey -Name $ServerRegName -Value 0 -PropertyType DWORD | Out-Null
-
-		if (!(Test-Path -Path $ClientRegKey)) {
-			New-Item -Path $ClientRegKey | Out-Null
-		}
-
-		New-ItemProperty -Path $ClientRegKey -Name $ServerRegName -Value 0 -PropertyType DWORD | Out-Null
-		New-ItemProperty -Path $ClientRegKey -Name $ClientRegName -Value 1 -PropertyType DWORD | Out-Null
-
-		Write-Log -Message "Successfully disabled SSLv3."
-	}
-
-	End {		
-	}        
-}
-
-Function Test-PackageInstallation {
-	<#
-		.SYNOPSIS
-			Tests for the installation of the specified software or update.
-
-		.DESCRIPTION
-			This cmdlet evaluates Win32_QuickFixEngineering, HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall, HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall, and
-			HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UserData\S-1-5-18\Products for a matching product.
-
-		.PARAMETER PackageId
-			The Id of the installed package, software, or update.
-
-		.INPUTS
-			None
-
-		.OUTPUTS
-			System.Boolean
-
-        .EXAMPLE
-			Test-PackageInstallation -PackageId KB2803757
-
-			Tests for the installation of KB2803757.
-
-		.NOTES
-			AUTHOR: Michael Haken
-			LAST UPDATE: 8/24/2016
-	#>
-	[CmdletBinding()]
-	Param(
-		[Parameter(Mandatory=$true)]
-		[System.String]$PackageId
-	)
-
-	Begin {}
-
-	Process {
-        $PresenceKey = $null
-        $PresenceKey = Get-CimInstance -Class Win32_quickfixengineering -ErrorAction SilentlyContinue | Where-Object { $_.HotFixID -eq $PackageId } | Select-Object -ExpandProperty HotFixID
-        
-		if ([System.String]::IsNullOrEmpty($PresenceKey)) {
-			$Result = Test-Path -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\$PackageId"
-            
-			if ($Result -eq $false) {
-				# Alternative (seen KB2803754, 2802063 register here)
-                $Result = Test-Path -Path "HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\$PackageId"
-                
-                if ($Result -eq $false) {
-                    # Alternative (Office2010FilterPack SP1)
-					$Result = Test-Path -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UserData\S-1-5-18\Products\$PackageId"
-                }
-            }
-        }
-		else {
-			$Result = $true
-		}
-
-		Write-Output -InputObject $Result
-	}
-
-	End {		
-	}
-}
-
-Function Get-WebPackage {
-	<#
-		.SYNOPSIS
-			Retrieves a specified package from the internet.
-
-		.DESCRIPTION
-			This cmdlet tests for the presence of the desired package name, and if it is not present at the provided destination folder, downloads it from the given Url.
-
-			Hotfixes that download with a _zip in the filename, but have a .exe extension, will be automatically expanded to a true zip file.
-
-		.PARAMETER PackageName
-			The name of the package.
-
-		.PARAMETER Destination
-			The path where the package should be downloaded to, this should be the resulting file name of the downloaded item.
-
-		.PARAMETER Url
-			The source to download the package from.
-
-		.INPUTS
-			None
-
-		.OUTPUTS
-			System.String[]
-
-        .EXAMPLE
-			Get-WebPackage -PackageName "Test App" -Url "http://contoso.com/testapp.zip" -Destination "c:\testapp.zip"
-
-			Gets the zip file from the Url and returns the list of its contents.
-
-		.NOTES
-			AUTHOR: Michael Haken
-			LAST UPDATE: 8/24/2016
-	#>
-	[CmdletBinding()]
-	Param(
-		[Parameter()]
-		[System.String]$PackageName,
-
-		[Parameter(Mandatory = $true, Position = 0)]
-		[System.String]$Url,
-
-		[Parameter(Mandatory = $true, Position = 1)]
-		[System.String]$Destination
-	)
-
-	Begin {		
-	}
-
-	Process {
-		$Result = @()
-
-		if (![System.String]::IsNullOrEmpty($PackageName)) 
-		{
-			Write-Log -Message "Processing package $PackageName."
-		}
-
-		if (!(Test-Path -Path $Destination)) 
-		{
-			Write-Log "$Destination not present, downloading from $Url." -Level VERBOSE
-
-			try {
-				$WebClient = New-Object -TypeName System.Net.WebClient
-				$WebClient.DownloadFile($Url, $Destination)
-
-				$FileInfo = New-Object -TypeName System.IO.FileInfo($Destination)
-
-				if ($FileInfo.Name.Contains("_zip")) 
-				{
-					try {
-						Write-Log -Message "Expanding Hotfix $($FileInfo.Name)." -Level VERBOSE
-
-						if (!$Destination.EndsWith(".zip")) 
-						{
-							$Destination = Rename-Item -Path $Destination -NewName "$Destination.zip" -PassThru | Select-Object -ExpandProperty FullName
-						}
-
-						[System.IO.Compression.ZipArchive]$Zip = [System.IO.Compression.ZipFile]::OpenRead($Path)
-						$Contents = $Zip.Entries | Select-Object -Property @{Name = "Path"; Expression = {"$($FileInfo.DirectoryName)\$($_.FullName)"}} | Select-Object -ExpandProperty Path
-						$Zip.Dispose()
-						[System.IO.Compression.ZipFile]::ExtractToDirectory($Path, $FileInfo.DirectoryName)
-
-						Write-Log -Message "Successfully expanded files $($Contents -join `",`")" -Level VERBOSE
-
-						$Result = $Contents
-					}
-					catch [Exception] {
-						Write-Log -Message "Error expanding zip file $Destination." -Level WARNING -ErrorRecord $_
-					}
+				if ($Cert.HasPrivateKey()) {
+					$Path = "$($env:ProgramData)\Microsoft\Crypto\RSA\MachineKeys\$($Cert.PrivateKey.CspKeyContainerInfo.UniqueKeyContainerName)"
+					[System.Security.AccessControl.InheritanceFlags[]]$Inheritance = @([System.Security.AccessControl.InheritanceFlags]::None)
 				}
 				else {
-					$Result = @($Destination)
+					throw "A certificate without a private key was selected."
 				}
-			}
-			catch [Exception] {
-				Write-Log -Message "Problem downloading file from $Url." -Level WARNING -ErrorRecord $_
-			}
-		}
-		else 
-		{
-			Write-Log -Message "$Destination is present, no need to download." -Level VERBOSE
-			$Result = @($Destination)
-		}
-
-		Write-Output -InputObject $Result
-	}
-
-	End {		
-	}
-}
-
-Function Start-PackageInstallation {
-	<#
-		.SYNOPSIS
-			Installs the specified package.
-
-		.DESCRIPTION
-			This cmdlet launches the installation of a specified package.
-
-		.PARAMETER PackageId
-			The PackageId of the package to test if the package is already installed.
-
-		.PARAMETER PackageName
-			The name of the package to install, can be any text you want to identify the package in the logs.
-
-		.PARAMETER Destination
-			The location to download the installation files to.
-
-		.PARAMETER Url
-			The source path to download the installation files from.
-
-		.PARAMETER Arguments
-			The arguments to be used with the installation file.
-
-		.INPUTS
-			None
-
-		.OUTPUTS
-			None
-
-        .EXAMPLE
-			Start-PackageInstallation -PackageId "KB123456" -PackageName "Another update" -Destination "c:\kb123456.msu" -Url "http://contoso.com/kb123456.msu" -ArgumentList @("\qn")
-
-			Installs the specified KB.
-
-		.NOTES
-			AUTHOR: Michael Haken
-			LAST UPDATE: 8/24/2016
-	#>
-	[CmdletBinding()]
-	Param(
-		[Parameter(Mandatory=$true)]
-		[System.String]$PackageId,
-
-		[Parameter(Mandatory=$true)]
-		[System.String]$PackageName,
-
-		[Parameter(Mandatory=$true)]
-		[System.String]$Destination,
-
-		[Parameter(Mandatory=$true)]
-		[System.String]$Url,
-
-		[Parameter()]
-		[ValidateNotNull()]
-		[System.String[]]$Arguments = @()
-	)
-
-	Begin {}
-
-	Process {
-        Write-Log -Message "Processing $PackageName ($PackageId)"
-
-        if (!(Test-PackageInstallation -PackageId $PackageId)) {
-
-			Write-Log -Message "Package not detected, installing."
-
-			$Contents = @()
-
-            if (!(Test-Path -Path $Destination)) {
-				# Download & Extract
-				$Contents = Get-WebPackage -Package $PackageName -Url $Url -Destination $Destination
-
-                if ($Contents.Count -eq 0) {
-					Write-Log -Message "Problem downloading/accessing $PackageName" -Level ERROR
-					throw "Problem downloading/accessing $PackageName"
-                }
-            }
-			else {
-				$Contents += $Destination
-			}
-               
-			Write-Log -Message "Installing $PackageName"
-
-			foreach ($Item in $Contents) {
-				$Lower = $Item.ToLower()
-				if ($Lower.EndsWith(".exe") -or $Lower.EndsWith(".msi") -or $Lower.EndsWith(".msu") -or $Lower.EndsWith(".msp")) {
-					Start-ProcessWait -FilePath $Item -ArgumentList $Arguments -EnableLogging
-				}
-			}
-
-			if (!(Test-PackageInstallation -PackageId $PackageId)) {
-                Write-Log -Message "Problem installing $PackageName after the install steps were run, did not find the package Id $PackageId." -Level ERROR
-				throw "Problem installing $PackageName after the install steps were run, did not find the package Id $PackageId."
-            }
-			else {
-				Write-Log -Message "$PackageName successfully installed."
-			}
-        }
-        else {
-            Write-Log -Message "$PackageName already installed" -Level VERBOSE
-        }  
-	}
-	
-	End {}  
-}
-
-Function Set-RunOnceScript {
-	<#
-		.SYNOPSIS
-			Adds a RunOnce script that launches a PowerShell script at user logon.
-
-		.DESCRIPTION
-			This cmdlet adds a RunOnce script that launches on user logon. If the specified Name already exists as a RunOnce entry, it is removed first.
-
-		.PARAMETER Command
-			The command to run. This can be the path to a script file, or native PowerShell commands.
-
-		.PARAMETER StoreAsPlainText
-			Stores the commands as plain text instead of Base64.
-
-		.PARAMTER RunFile
-			Specifies that the command parameter was the path to a script file and not native PowerShell commands.
-
-		.PARAMETER Name
-			The name of the RunOnce entry in the registry.
-
-		.INPUTS
-			None
-
-		.OUTPUTS
-			None
-
-        .EXAMPLE
-			Set-RunOnceScript -Command "c:\test.ps1" -RunFile
-
-			Configures the RunOnce setting to run the c:\test.ps1 file when a user logs on.
-
-		.EXAMPLE 
-			Set-RunOnceScript -Command "Get-Service" -Name "ListServices"
-
-			Configures the RunOnce setting to run the Get-Service cmdlet when a user logs on.
-
-		.NOTES
-			AUTHOR: Michael Haken
-			LAST UPDATE: 8/26/2016
-	#>
-	[CmdletBinding()]
-	Param(
-		[Parameter(Mandatory=$true)]
-		[System.String]$Command,
-
-		[Parameter(ParameterSetName="Text")]
-		[switch]$StoreAsPlainText,
-
-		[Parameter(ParameterSetName="File")]
-		[switch]$RunFile,
-
-		[Parameter(Mandatory = $true)]
-		[System.String]$Name
-	)
-
-	Begin {
-
-	}
-
-	Process {
-		$Path = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce"
-        
-		if ([System.String]::IsNullOrEmpty($Name))
-		{
-			$Name = $script:RunOnceTaskName
-		}
-
-        Remove-ItemProperty -Path $Path -Name $Name -ErrorAction SilentlyContinue
-
-		$RunOnce = "$PSHome\PowerShell.exe -NoProfile -NoLogo -NoExit -ExecutionPolicy Unrestricted"
-
-		if ($StoreAsPlainText) {		
-			$Command = $Command.Replace("`"", "\`"").Replace("`n","").Replace("`r","").Replace("`t","")
-			#$RunOnce += " -Command `"& {$Command}`""
-            $RunOnce += " -Command `"$Command`""
-		}
-		elseif ($RunFile) {
-            $RunOnce += " -File `"$Command`""
-        }
-		else {
-			$Bytes = [System.Text.Encoding]::Unicode.GetBytes($Command)
-			$EncodedCommand = [System.Convert]::ToBase64String($Bytes)
-			$RunOnce += " -EncodedCommand $EncodedCommand"
-		}
-
-		if (!(Test-Path -Path $Path)) {
-			New-Item -Path $Path | Out-Null
-		}
-		
-		Write-Log -Message "Setting RunOnce: $RunOnce" -Level VERBOSE
-		New-ItemProperty -Path $Path -Name $Name -Value "$RunOnce" -PropertyType String | Out-Null
-		Write-Log -Message "Successfully set RunOnce." -Level VERBOSE
-	}
-
-	End {
-	}
-}
-
-Function Extract-ZipFile {
-	<#
-		.SYNOPSIS
-			The cmdlet extracts the contents of a zip file to a specified destination.
-
-		.DESCRIPTION
-			The cmdlet extracts the contents of a zip file to a specified destination and optionally preserves the contents in the destination if they already exist.
-
-		.PARAMETER Source
-			The path to the zip file.
-
-		.PARAMETER Destination
-			The folder where the zip file should be extracted. The destination is created if it does not already exist.
-
-		.PARAMETER NoOverwrite
-			Specify if the contents in the destination should be preserved if they already exist.
-
-		.INPUTS
-			None
-		
-		.OUTPUTS
-			None
-
-		.EXAMPLE 
-			Extract-ZipFile -Source "c:\test.zip" -Destination "c:\test"
-
-			Extracts the contents of test.zip to c:\test.
-
-		.NOTES
-			None
-	#>
-	[CmdletBinding()]
-	Param(
-		[Parameter(Position=0, Mandatory=$true)]
-		[ValidateScript({Test-Path -Path $_})]
-		[System.String]$Source,
-
-		[Parameter(Position=1, Mandatory=$true)]
-		[System.String]$Destination,
-
-		[Parameter()]
-		[switch]$NoOverwrite
-	)
-
-	Begin {
-		Add-Type -AssemblyName System.IO.Compression.FileSystem
-	}
-
-	Process {
-		if (!(Test-Path -Path $Source)) {
-			throw [System.IO.FileNotFoundException]("Source zip file not found.")
-		}
-
-		if (!(Test-Path -Path $Destination)) {
-
-			Write-Log "Zip extract destination $Destination does not exist, creating it."
-
-			try {
-				New-Item -Path $Destination -ItemType Directory | Out-Null
-
-				$Counter = 0
-
-				while (!(Test-Path -Path $Destination)) {
-					Start-Sleep -Seconds 1
-					$Counter++
-
-					if ($Counter -gt 60) {
-						throw "Timeout error waiting for the zip extraction destination $Destination to be created."
-					}
-				}
-			}
-			catch [Exception] {
-				Write-Log -ErrorRecord $_
-				throw $_.Exception
-			}
-		}
-		else {
-			if (![System.IO.Directory]::Exists($Destination)) {
-				throw [System.IO.DirectoryNotFoundException]("The destination is a file, not a directory.")
-			}
-		}
-
-		if (-not $NoOverwrite) {
-			Write-Log -Message "Extracting zip without overwriting existing content."
-			[System.IO.Compression.ZipArchive]$ZipArchive = [System.IO.Compression.ZipFile]::OpenRead($Source)
-
-			try
-			{
-				foreach ($ZipArchiveEntry in $ZipArchive.Entries) {
-					$FullPath = [System.IO.Path]::Combine($Destination, $ZipArchiveEntry.FullName)
-
-					#Test to see if the archive entry is a directory
-					#Directories' name attribute is empty, 
-					if ([System.String]::IsNullOrEmpty($ZipArchiveEntry.Name) -or $ZipArchiveEntry.FullName.Contains("/")) {
-						$Temp = [System.IO.Path]::Combine($Destination, $ZipArchiveEntry.FullName.Substring(0, $ZipArchiveEntry.FullName.LastIndexOf("/")))
-						$Temp = $Temp.Replace("/","\")
-						if (![System.IO.Directory]::Exists($Temp)) {
-							try {
-								New-Item -Path $Temp -ItemType Directory | Out-Null
-
-								$Counter = 0
-								while (!(Test-Path -Path $Temp)) {
-									Start-Sleep -Seconds 1
-									$Counter++
-
-									if ($Counter -gt 60) {
-										throw "Timeout waiting for directory creation $Temp"
-									}
-								}
-							}
-							catch [Exception] {
-								Write-Log -ErrorRecord $_
-							}
-						}
-					}
-
-					if (![System.String]::IsNullOrEmpty($ZipArchiveEntry.Name)) {
-						try
-						{
-							$FullPath = $FullPath.Replace("/","\")
-
-							[System.IO.Compression.ZipFileExtensions]::ExtractToFile($ZipArchiveEntry, $FullPath, $true)
-
-							$Counter = 0
-							
-							while(!(Test-Path -Path $FullPath)) {
-								Start-Sleep -Seconds 1
-								$Counter++
-
-								if ($Counter -gt 60) {
-									Write-Log "Timeout waiting for zip extraction of $FullPath"
-									break
-								}
-							}
-						}
-						catch [Exception] {
-							Write-Log -ErrorRecord $_
-						}
-					}
-				}
-			}
-			finally {
-				$ZipArchive.Dispose()
-			}
-		}
-		else {
-			Write-Log -Message "Extracting zip with overwrite."
-			[System.IO.Compression.ZipFile]::ExtractToDirectory($Source, $Destination)
-		}
-	}
-
-	End {		
-	}
-}
-
-Function New-RandomPassword {
-	<#
-		.SYNOPSIS
-			The cmdlet generates a random string.
-
-		.DESCRIPTION
-			The cmdlet generates a random string with a specific length and complexity settings.
-
-		.PARAMETER Length
-			The length of the returned string, this defaults to 14.
-
-		.PARAMETER SourceData
-			The range of characters that can be used to generate the string. This defaults to 
-
-			for ($a=33; $a -le 126; $a++) {
-				$SourceData += ,[char][byte]$a 
-			}  
-
-			which contains upper, lower, number, and special characters.
-
-		.PARAMETER EnforceComplexity
-			Specify to ensure the produced string has at least 2 upper, 2 lower, 2 number, and 2 special characters.
-
-		.PARAMETER AsSecureString
-			Specify to return the result as a secure string instead of a standard string.
-
-		.INPUTS
-			System.Int32
-		
-		.OUTPUTS
-			System.String
-
-			System.Security.SecureString
-
-		.EXAMPLE 
-			$Pass = New-RandomPassword
-
-			Generates a new random password.
-
-		.NOTES
-			None
-	#>
-    [CmdletBinding()]
-    Param(
-        [Parameter(Position=0,ValueFromPipeline=$true)]
-        [System.Int32]$Length=14,
-
-        [Parameter(Position=1)]
-        $SourceData = $null,
-
-        [Parameter()]
-        [switch]$EnforceComplexity,
-
-		[Parameter()]
-		[switch]$AsSecureString
-    )
-
-	Begin {		
-	}
-
-    Process {
-		$Password = [System.String]::Empty
-
-		if ($SourceData -eq $null) {        
-			for ($a=33; $a -le 126; $a++) {
-				$SourceData += ,[char][byte]$a 
-			}          
-		}
-
-		if ($EnforceComplexity) {
-			if ($Length -lt 14) {
-				$Length = 14
-			}
-		}
-
-		if ($EnforceComplexity) {
-			$Upper = 0
-			$Lower = 0
-			$Special = 0
-			$Number = 0
-
-			while ($Upper -lt 2 -or $Lower -lt 2 -or $Special -lt 2 -or $Number -lt 2) {
-				$Upper = 0
-				$Lower = 0
-				$Special = 0
-				$Number = 0
-
-				$Password = ""
-
-				for ($i=1; $i –le $Length; $i++) {
-					$Password += ($SourceData | Get-Random)
-				}
-
-				for ($i = 0; $i -lt $Password.Length; $i++) {
-					if ([System.Char]::IsUpper($Password[$i])) {
-						$Upper++
-					}
-					if ([System.Char]::IsLower($Password[$i])) {
-						$Lower++
-					}
-					if ([System.Char]::IsSymbol($Password[$i])) {
-						$Special++
-					}
-					if ([System.Char]::IsNumber($Password[$i])) {
-						$Number++
-					}
-				}
-			}
-		}
-		else {
-			for ($i=1; $i –le $Length; $i++) {
-				$Password += ($SourceData | Get-Random)
-			}
-		}
-
-		if ($AsSecureString) {
-			Write-Output -InputObject (ConvertTo-SecureString -String $Password -AsPlainText -Force)
-		}
-		else {
-			Write-Output -InputObject $Password
-		}
-	}
-
-	End {		  		
-	}
-}
-
-Function New-EncryptedPassword {
-	<#
-		.SYNOPSIS
-			The cmdlet creates a password encrypted with the calling user's credentials.
-
-		.DESCRIPTION
-			The cmdlet creates a password encrypted with the calling user's credentials via the Windows Data Protection API (DPAPI).
-
-		.PARAMETER Password
-			The plain text password to encrypt.
-
-		.PARAMETER SecurePassword
-			The secure string password to encrypt.
-
-		.INPUTS
-			System.String
-
-			System.Security.SecureString
-		
-		.OUTPUTS
-			System.String
-
-		.EXAMPLE 
-			New-EncryptedPassword -Password "MySecurePassword"
-
-			Encrypts the password with the calling user's credentials.
-
-		.NOTES
-			None
-	#>
-    [CmdletBinding(DefaultParameterSetName="SecureString")]
-    Param(
-        [Parameter(Position=0,ValueFromPipeline=$true,Mandatory=$true,ParameterSetName="PlainText")]
-        [System.String]$Password,
-
-        [Parameter(Position=0,ValueFromPipeline=$true,Mandatory=$true,ParameterSetName="SecureString")]
-        [SecureString]$SecurePassword
-    )
-
-    Begin {        
-    }
-
-    Process {
-		switch ($PSCmdlet.ParameterSetName) {
-            "PlainText" {
-                [SecureString]$SecurePass = ConvertTo-SecureString -String $Password -AsPlainText -Force
                 break
             }
-            "SecureString" {
-                [SecureString]$SecurePass = $SecurePassword
-				break
+            "Subject" {
+                [System.Security.Cryptography.X509Certificates.X509Certificate2]$Cert = Get-ChildItem -Path "Cert:\LocalMachine\My" | Where-Object {$_.Subject -eq $PSBoundParameters["Subject"]} | Select-Object -First 1
+				if ($Cert.HasPrivateKey()) {
+					$Path = "$($env:ProgramData)\Microsoft\Crypto\RSA\MachineKeys\$($Cert.PrivateKey.CspKeyContainerInfo.UniqueKeyContainerName)"
+					[System.Security.AccessControl.InheritanceFlags[]]$Inheritance = @([System.Security.AccessControl.InheritanceFlags]::None)
+				}
+				else {
+					throw "A certificate without a private key was selected."
+				}
+                break
+            }
+            "All" {
+                $Path = "$($env:ProgramData)\Microsoft\Crypto\RSA\MachineKeys"
+                [System.Security.AccessControl.InheritanceFlags[]]$Inheritance = @([System.Security.AccessControl.InheritanceFlags]::ContainerInherit, [System.Security.AccessControl.InheritanceFlags]::ObjectInherit)
+                break
             }
             default {
-                throw "Could not determine parameter set for Save-EncryptedPassword."
+                throw "Could not determine parameter set name"
             }
         }
 
-        Write-Output -InputObject (ConvertFrom-SecureString -SecureString $SecurePass)
+        #Provide access to Subfolders and files
+        [System.Security.AccessControl.FileSystemAccessRule]$AccessRule = New-Object -TypeName System.Security.AccessControl.FileSystemAccessRule(
+            $Account.Translate([System.Security.Principal.SecurityIdentifier]),
+            $Level,
+            $Inheritance,
+            [System.Security.AccessControl.PropagationFlags]::InheritOnly,
+            [System.Security.AccessControl.AccessControlType]::Allow
+        )
+
+		Set-FileSecurity -AccessRules @($AccessRule) -Path $Path -ReplaceRulesForUser:$Replace -ForceChildInheritance:$All
     }
-
-    End {}
-}
-
-Function Get-EncryptedPassword {
-	<#
-		.SYNOPSIS
-			The cmdlet unencrypts an encrypted string stored in a file.
-
-		.DESCRIPTION
-			The cmdlet unencrypts a string stored in a file using the calling user's credentials via the Windows Data Protection API (DPAPI).
-
-		.PARAMETER FilePath
-			The path to the file with the encrypted password.
-
-		.INPUTS
-			System.String
-		
-		.OUTPUTS
-			System.Security.SecureString
-
-		.EXAMPLE 
-			Get-EncryptedPassword -FilePath "c:\password.txt"
-
-			Unencrypts the password stored in the file with the calling user's credentials.
-
-		.NOTES
-			None
-	#>
-	[CmdletBinding()]
-    Param(
-        [Parameter(Position=0,ValueFromPipeline=$true,Mandatory=$true)]
-		[ValidateScript({Test-Path -Path $_})]
-        [System.String]$FilePath
-    )
-
-    Begin {        
-    }
-
-    Process {
-        [SecureString]$Password = Get-Content -Path $FilePath | ConvertTo-SecureString
-
-		Write-Output -InputObject $Password
-    }
-
-    End {       
+    
+    End {
     }
 }
 
@@ -6907,6 +5279,7 @@ Function Get-CertificateSAN {
 			LAST UPDATE: 3/31/2017
 	#>
 	[CmdletBinding()]
+	[OutputType([System.String[]])]
 	Param(
 		[Parameter(ParameterSetName = "Hash", Mandatory = $true, ValueFromPipeline = $true)]
 		[ValidateNotNullOrEmpty()]
@@ -6960,6 +5333,121 @@ Function Get-CertificateSAN {
 	}
 
 	End {
+	}
+}
+
+#endregion
+
+
+#region Disk
+
+Function New-GptVolume {
+	<#
+		.SYNOPSIS
+			Creates a formatted GPT partition and volume on the specified disk.
+
+		.DESCRIPTION
+			The cmdlet cleans, initializes to GPT, partitions using all available disk space, and creates an NTFS volume on the partition.
+
+			It is essentially a shortcut/convenience cmdlet for the common task that used to be performed with DIKSPART.
+
+		.EXAMPLE
+			Get-Disk -Number 1 | New-GptVolume
+
+			Creates a GPT NTFS formatted volume on Disk 1 and auto assigns it a drive letter.
+
+		.EXAMPLE
+			New-GptVolume -DiskNumber 2 -DriveLetter G -Confirm
+
+			Creates a new GPT NTFS formatted volume on Disk 2 and assigns it a drive letter of G.
+
+		.PARAMETER DiskNumber
+			The disk number of the disk to partition and format.
+
+		.PARAMETER InputObject
+			The MSFT_Disk CIM object to partition and format.
+
+		.PARAMETER DriveLetter
+			The letter to assign to the new volume. If this is not specified, a letter is auto assigned.
+
+		.PARAMETER Confirm
+			Prompts you for confirmation before running the cmdlet.
+
+		.INPUTS
+			[Microsoft.Management.Infrastructure.CimInstance#ROOT/Microsoft/Windows/Storage/MSFT_Disk]
+
+		.OUTPUTS
+			None
+
+		.NOTES
+			AUTHOR: Michael Haken
+			LAST UPDATE: 1/4/2017
+	#>
+	[CmdletBinding(DefaultParameterSetName = "Number", ConfirmImpact = "High", SupportsShouldProcess = $true)]
+	Param(
+		[Parameter(Mandatory = $true, ParameterSetName = "Number", ValueFromPipeline = $true)]
+		[System.Int32]$DiskNumber,
+
+		[Parameter(Mandatory = $true, ParameterSetName = "Input", ValueFromPipeline = $true)]
+		[ValidateNotNull()]
+        [PSTypeName("Microsoft.Management.Infrastructure.CimInstance#ROOT/Microsoft/Windows/Storage/MSFT_Disk")]
+		[Microsoft.Management.Infrastructure.CimInstance]$InputObject,
+
+		[Parameter()]
+		[ValidatePattern("[d-zD-Z]")]
+		[System.Char]$DriveLetter,
+        
+        [Parameter()]
+		[ValidateNotNull()]
+        [Microsoft.Management.Infrastructure.CimSession]$CimSession
+	)
+
+	Begin {
+	}
+
+	Process {
+        if ($CimSession -eq $null)
+        {
+            $CimSession = New-CimSession
+        }
+
+		if ($PSCmdlet.ParameterSetName -eq "Number")
+		{
+			[Microsoft.Management.Infrastructure.CimInstance]$Disk = Get-Disk -Number $DiskNumber -CimSession $CimSession
+		}
+		else 
+		{
+			[Microsoft.Management.Infrastructure.CimInstance]$Disk = $InputObject
+		}
+
+        if ($PSCmdlet.ShouldProcess($Disk.UniqueId, "Clean, initialize, and format"))
+		{
+		    Set-Disk -Number $Disk.Number -IsOffline $false -CimSession $CimSession
+		    Set-Disk -Number $Disk.Number -IsReadOnly $false -CimSession $CimSession
+
+		    if ($Disk.PartitionStyle -ne "RAW")
+		    {
+			    Clear-Disk -InputObject $Disk -RemoveData -CimSession $CimSession -Confirm:$false
+		    }
+		
+		    Initialize-Disk -InputObject $Disk -PartitionStyle GPT -CimSession $CimSession -Confirm:$false
+            Stop-Service -Name ShellHWDetection -Force -Confirm:$false
+
+		    if ($PSBoundParameters.ContainsKey("DriveLetter") -and $DriveLetter -ne $null -and $DriveLetter -ne '')
+		    {
+			    New-Partition -DiskNumber $Disk.Number -UseMaximumSize -DriveLetter $DriveLetter -CimSession $CimSession | Format-Volume -FileSystem NTFS -CimSession $CimSession
+		    }
+		    else
+		    {
+			    New-Partition -DiskNumber $Disk.Number -UseMaximumSize -AssignDriveLetter -CimSession $CimSession | Format-Volume -FileSystem NTFS -CimSession $CimSession
+		    }
+
+            Start-Service -Name ShellHWDetection -Confirm:$false
+        }
+	}
+
+	End {
+
 	}
 }
 
@@ -7027,6 +5515,7 @@ Function Get-DiskFree {
 	#>
     [Alias("df")]
     [CmdletBinding(DefaultParameterSetName = "blocks")]
+	[OutputType([System.Management.Automation.PSCustomObject])]
     Param(
         [Parameter(ValueFromPipeline = $true)]
         [ValidateNotNull()]
@@ -7034,7 +5523,7 @@ Function Get-DiskFree {
 
         [Parameter(ParameterSetName="human")]
         [Alias("h")]
-        [switch]$HumanReadable,
+        [Switch]$HumanReadable,
 
         [Parameter(ParameterSetName="blocks")]
         [ValidateScript({
@@ -7175,190 +5664,1548 @@ Function Get-DiskFree {
     }
 }
 
-Function Invoke-ForceDelete {
-		<#
+#endregion
+
+
+#region User Accounts / Groups
+
+Function Test-IsLocalAdmin {
+	<#
 		.SYNOPSIS
-			The cmdlet forces the deletion of a file or folder and all of its content.
+			Tests is the current user has local administrator privileges.
 
 		.DESCRIPTION
-			The cmdlet takes ownership of the file or content in a directory and grants the current user
-			full control permissions to the item. Then it deletes the item and performs this recursively
-			through the directory structure specified.
-		
-		.PARAMETER Path
-			The path to the file or folder to forcefully delete.
-
-		.PARAMETER Force
-			Ignores the confirmation to delete each item.
+			The Test-IsLocalAdmin cmdlet tests the user's current Windows Identity for inclusion in the BUILTIN\Administrators role.
 
 		.INPUTS
-			System.String
-		
-		.OUTPUTS
 			None
 
-		.EXAMPLE 
-			Invoke-ForceDelete -Path c:\windows.old
+		.OUTPUTS
+			System.Boolean
 
-			Forcefully deletes the c:\windows.old directory and all of its content.
+		.EXAMPLE
+			Test-IsLocalAdmin
+
+			This command returns true if the current is running the session with local admin credentials and false if not.
+
+		.NOTES
+			AUTHOR: Michael Haken	
+			LAST UPDATE: 2/27/2016
+
+		.FUNCTIONALITY
+			The intended use of this cmdlet is to test for administrative credentials before running other commands that require them.
+	#>
+	[CmdletBinding()]
+	[OutputType([System.Boolean])]
+	Param()
+
+	Begin {}
+
+	Process {
+		Write-Output -InputObject ([System.Security.Principal.WindowsPrincipal][System.Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
+	}
+
+	End {}
+ }
+
+Function Get-UserProfiles {
+	<#
+		.SYNOPSIS
+			Gets all of the user profiles on the system.
+
+		.DESCRIPTION
+			The Get-UserProfiles cmdlet uses the Win32_UserProfile WMI class to get user profile paths. It ignores special profiles like the local system.
+
+		.EXAMPLE
+			Get-UserProfiles
+
+			Gets all of the user profiles on the system as an array of path strings.
+
+		.INPUTS
+			None
+
+		.OUTPUTS
+			System.String[]
 
 		.NOTES
 			AUTHOR: Michael Haken
-			LAST UPDATE: 4/24/2017
+			LAST UPDATE: 4/25/2016
 	#>
-	[CmdletBinding(SupportsShouldProcess = $true)]
+	[CmdletBinding()]
+	[OutputType([System.String[]])]
+	Param(
+	)
+
+	Begin {}
+
+	Process {
+		Write-Output -InputObject (Get-WmiObject -Class Win32_UserProfile | Where-Object {$_.Special -eq $false} | Select-Object -ExpandProperty LocalPath)
+	}
+
+	End {		
+	}
+}
+
+Function Get-AccountSid {
+	<#
+		.SYNOPSIS
+			Gets the SID of a given username.
+
+		.DESCRIPTION
+			The cmdlet gets the SID of a username, which could a service account, local account, or domain account. The cmdlet returns null if the username could not be translated.
+
+		.PARAMETER UserName
+			The name of the user or service account to get the SID of.
+
+		.PARAMETER ComputerName
+			If the account is local to another machine, such as an NT SERVICE account or a true local account, specify the computer name the account is on.
+
+		.PARAMETER Credential
+			The credentials used to connect to the remote machine.
+			
+		.INPUTS
+			None
+
+		.OUTPUTS
+			System.Security.Principal.SecurityIdentifier
+
+        .EXAMPLE
+			Get-AccountSid -UserName "Administrator"
+
+			Gets the SID for the Administrator account.
+
+		.EXAMPLE
+			Get-AccountSid -UserName "NT AUTHORITY\Authenticated Users"
+
+			Gets the SID for the Authenticated Users group.
+
+		.EXAMPLE
+			Get-AccountSid -UserName "NT AUTHORITY\System"
+
+			Gets the SID for the SYSTEM account. The user name could also just be "System".
+
+		.EXAMPLE
+			Get-AccountSid -UserName "NT SERVICE\MSSQLSERVER" -ComputerName SqlServer
+
+			Gets the SID for the virtual MSSQLSERVER service principal.
+
+		.NOTES
+			AUTHOR: Michael Haken
+			LAST UPDATE: 2/23/2017
+	#>
+	[CmdletBinding()]
+	[OutputType([System.Security.Principal.SecurityIdentifier])]
+	Param(
+		[Parameter(Position = 0, Mandatory = $true, ValueFromPipeline = $true)]
+		[ValidateNotNullOrEmpty()]
+		[System.String]$UserName,
+
+		[Parameter(Position = 1)]
+		[ValidateNotNull()]
+		[System.String]$ComputerName = [System.String]::Empty,
+
+		[Parameter()] 
+		[ValidateNotNull()]
+		[System.Management.Automation.Credential()]
+		[System.Management.Automation.PSCredential]$Credential = [System.Management.Automation.PSCredential]::Empty  
+	)
+
+	Begin {	
+	}
+
+	Process{
+		Write-Log -Message "Getting SID for $UserName." -Level VERBOSE
+
+		[System.String]$Domain = [System.String]::Empty
+		[System.String]$Name = [System.String]::Empty
+
+		if ($UserName.IndexOf("\") -ne -1) 
+		{
+			[System.String[]]$Parts = $UserName.Split("\")
+			$Domain = $Parts[0]
+
+			#If the UserName is something like .\john.doe, change the computer name
+			if ($Domain -iin $script:LocalNames)
+			{
+				#Use an empty string for the domain name on the local computer
+				$Domain = [System.String]::Empty
+			}
+
+			$Name = $Parts[1]			
+		}
+		elseif ($UserName.IndexOf("@") -ne -1) 
+		{
+			[System.String[]]$Parts = $UserName.Split("@")
+			$Domain = $Parts[1]
+			$Name = $Parts[0]
+		}
+		else 
+		{
+			try 
+			{
+				$Domain = Get-ADDomain -Current LocalComputer -ErrorAction Stop | Select-Object -ExpandProperty Name
+			}
+			catch [Exception] 
+			{
+				#Use an empty string for the domain name on the local computer
+				$Domain = [System.String]::Empty
+			}
+
+			$Name = $UserName
+		}
+
+		if ([System.String]::IsNullOrEmpty($ComputerName) -or $ComputerName -iin $script:LocalNames) 
+		{
+			try 
+			{
+				$User = New-Object -TypeName System.Security.Principal.NTAccount($Domain, $Name)
+				$UserSid = $User.Translate([System.Security.Principal.SecurityIdentifier])
+			}
+			catch [Exception]
+			{
+				Write-Log -Message "Exception translating $Domain\$Name." -ErrorRecord $_ -Level VERBOSEERROR
+				$UserSid = $null
+			}
+		}
+		else 
+		{
+			$Session = New-PSSession -ComputerName $ComputerName -Credential $Credential
+				
+			$UserSid = Invoke-Command -Session $Session -ScriptBlock { 
+				try
+				{
+					$User = New-Object -TypeName System.Security.Principal.NTAccount($args[0], $args[1])
+					Write-Output -InputObject $User.Translate([System.Security.Principal.SecurityIdentifier])
+				}
+				catch [Exception]
+				{
+					Write-Log -Message "Exception translating $($args[0])\$($args[1])" -ErrorRecord $_ -Level VERBOSEERROR
+					Write-Output -InputObject $null
+
+				}
+			} -ArgumentList @($Domain, $Name)
+
+			Remove-PSSession -Session $Session
+		}
+		
+		Write-Output -InputObject $UserSid
+	}
+
+	End {		
+	}
+}
+
+Function Get-AccountTranslatedNTName {
+	<#
+		.SYNOPSIS
+			Gets the full NT Account name of a given username.
+
+		.DESCRIPTION
+			The cmdlet gets the SID of a username, which could a service account, local account, or domain account and then translates that to an NTAccount. The cmdlet returns null if the username
+			could not be translated.
+
+		.PARAMETER UserName
+			The name of the user or service account to get the SID of.
+
+		.PARAMETER ComputerName
+			If the account is local to another machine, such as an NT SERVICE account or a true local account, specify the computer name the account is on.
+
+		.PARAMETER Credential
+			The credentials used to connect to the remote machine.
+			
+		.INPUTS
+			None
+
+		.OUTPUTS
+			System.String
+
+        .EXAMPLE
+			Get-AccountTranslatedNTName -UserName "Administrator"
+
+			Gets the NT account name for the Administrator account, which is BUILTIN\Administrator.
+
+		.EXAMPLE
+			Get-AccountTranslatedNTName -UserName "Authenticated Users"
+
+			Gets the NT account name for the Authenticated Users group, which is NT AUTHORITY\Authenticated Users.
+
+		.EXAMPLE
+			Get-AccountTranslatedNTName -UserName "System"
+
+			Gets the NT account name for the SYSTEM account, which is NT AUTHORITY\System
+
+		.EXAMPLE
+			Get-AccountSid -UserName "MSSQLSERVER" -ComputerName SqlServer
+
+			Gets the NT account name for the virtual MSSQLSERVER service principal, which is NT SERVICE\MSSQLSERVER.
+
+		.NOTES
+			AUTHOR: Michael Haken
+			LAST UPDATE: 2/23/2017
+	#>
+	[CmdletBinding()]
+	[OutputType([System.String])]
+	Param(
+		[Parameter(Position=0,Mandatory=$true,ValueFromPipeline=$true)]
+		[ValidateNotNullOrEmpty()]
+		[System.String]$UserName,
+
+		[Parameter(Position=1)]
+		[ValidateNotNull()]
+		[System.String]$ComputerName = [System.String]::Empty,
+
+		[Parameter()] 
+		[ValidateNotNull()]
+		[System.Management.Automation.Credential()]
+		[System.Management.Automation.PSCredential]$Credential = [System.Management.Automation.PSCredential]::Empty  
+	)
+
+	Begin {	
+	}
+
+	Process{
+		Write-Log -Message "Getting NT Account for $UserName." -Level VERBOSE
+
+		[System.Security.Principal.SecurityIdentifier]$UserSid = Get-AccountSid -UserName $UserName.Trim() -ComputerName $ComputerName -Credential $Credential
+
+		[System.String]$NTName = [System.String]::Empty
+
+		if ($UserSid -ne $null)
+		{
+			if ([System.String]::IsNullOrEmpty($ComputerName) -or $ComputerName -iin $script:LocalNames) 
+			{
+				try
+				{
+					[System.Security.Principal.NTAccount]$NTAccount = $UserSid.Translate([System.Security.Principal.NTAccount])
+					$NTName = $NTAccount.Value.Trim()
+				}
+				catch [Exception]
+				{
+					Write-Log -Message "Exception translating SID $($UserSid.Value) for $UserName to NTAccount." -ErrorRecord $_ -Level VERBOSEERROR
+					$NTName = $null
+				}
+			}
+			else 
+			{
+				$Session = New-PSSession -ComputerName $ComputerName -Credential $Credential
+				
+				$NTName = Invoke-Command -Session $Session -ScriptBlock { 
+					try
+					{
+						[System.Security.Principal.NTAccount]$NTAccount = ([System.Security.Principal.SecurityIdentifier]$args[0]).Translate([System.Security.Principal.NTAccount])
+						Write-Output -InputObject $NTAccount.Value.Trim()
+					}
+					catch [Exception]
+					{
+						Write-Log -Message "Exception translating SID $($args[0].Value) to NTAccount." -ErrorRecord $_ -Level VERBOSEERROR
+						Write-Output -InputObject $null
+					}
+				} -ArgumentList @($UserSid)
+
+				Remove-PSSession -Session $Session
+			}
+		}
+		else
+		{
+			$NTName = $null
+		}
+
+		Write-Output -InputObject $NTName
+	}
+
+	End {		
+	}
+}
+
+Function Get-LocalGroupMembers {
+	<#
+		.SYNOPSIS
+			Gets the members of a local group
+
+		.DESCRIPTION
+			This cmdlet gets the members of a local group on the local or a remote system. The values are returned as DirectoryEntry values in the format WinNT://Domain/Name.
+
+		.PARAMETER LocalGroup
+			The local group on the computer to enumerate.
+
+		.PARAMETER ComputerName
+			The name of the computer to query. This defaults to the local computer.
+
+		.INPUTS
+			System.String
+
+		.OUTPUTS
+			System.String[]
+
+        .EXAMPLE
+			Get-LocalGroupMembers -LocalGroup Administrators 
+
+			Gets the membership of the local administrators group on the local machine.
+
+		.NOTES
+			AUTHOR: Michael Haken
+			LAST UPDATE: 8/25/2016
+	#>  
+	[CmdletBinding()]
+	[OutputType([System.String[]])]
 	Param(
 		[Parameter(Mandatory = $true, Position = 0, ValueFromPipeline = $true)]
 		[ValidateNotNullOrEmpty()]
-		[ValidateScript({ 
-            try {
-                Write-Output -InputObject (Test-Path -Path $Path -ErrorAction Stop)
-            }
-            catch [System.UnauthorizedAccessException] {
-                Write-Output $true
-            } 
-        })]
-		[System.String]$Path,
+		[System.String]$LocalGroup,		
 
-		[Parameter()]
-		[switch]$Force
+		[Parameter(Position = 1)]
+		[ValidateNotNullOrEmpty()]
+		[System.String]$ComputerName = $env:COMPUTERNAME
 	)
 
 	Begin {
 	}
 
-	Process {	
-		#Fix any paths that were fed in dot sourced
-		$Path = Resolve-Path -Path $Path
+	Process {
+		$Group = [ADSI]"WinNT://$ComputerName/$LocalGroup,group"	
+									
+		$Members = $Group.Invoke("Members", $null) | Select-Object @{Name = "Name"; Expression = {$_[0].GetType().InvokeMember("ADSPath", "GetProperty", $null, $_, $null)}} | Select-Object -ExpandProperty Name				
 
-        Write-Verbose -Message "Cmdlet called with path $Path"
+		Write-Output -InputObject $Members
+	}
 
-        #Take ownership of the provided path
-        & takeown.exe /F "$Path" | Out-Null
+	End {		
+	}
+}
 
-		#Get current user
-        [System.Security.Principal.WindowsIdentity]$Current = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+Function Add-DomainMemberToLocalGroup {
+	<#
+		.SYNOPSIS
+			Adds a domain user or group to a local group.
 
-		#Give full control to the user
-		& icacls.exe "$Path" /grant "*$($Current.User.Value):(F)" | Out-Null
+		.DESCRIPTION
+			This cmdlet adds a domain user or group to a local group on a specified computer. The cmdlet returns true if the member is added or is already a member of the group.
 
-		#If it's a directory, remove all of the child content
-		if ([System.IO.Directory]::Exists($Path))
-		{
-            Write-Verbose -Message "The current path $Path is a directory."
+			The cmdlet uses the current computer domain to identify the domain member.
 
-			Get-ChildItem -Path $Path -Force | ForEach-Object { 		
-                Invoke-ForceDelete -Path $_.FullName
-			}
-		}
-        
-        #Remove the specified path whether it is a folder or file
-		try
-        {	
-			if ($PSCmdlet.ShouldProcess($Path, "Delete") -or $Force)
+		.PARAMETER LocalGroup
+			The local group on the computer that will have a member added.
+
+		.PARAMETER Member
+			The domain user or group to add.
+
+		.PARAMETER MemberType
+			The type of the domain member, User or Group. This defaults to User.
+
+		.PARAMETER ComputerName
+			The name of the computer on which to add the local group member. This defaults to the local computer.
+
+		.INPUTS
+			None
+
+		.OUTPUTS
+			System.Boolean
+
+        .EXAMPLE
+			Add-DomainMemberToLocalGroup -LocalGroup Administrators -Member "Exchange Trusted Subsystem" -MemberType Group
+
+			Adds the domain group to the local administrators group on the local machine.
+
+		.NOTES
+			AUTHOR: Michael Haken
+			LAST UPDATE: 8/25/2016
+	#>  
+	[CmdletBinding()]
+	[OutputType([System.Boolean])]
+	Param(
+		[Parameter(Mandatory = $true, Position = 0)]
+		[ValidateNotNullOrEmpty()]
+		[System.String]$LocalGroup,
+
+		[Parameter(Mandatory = $true, Position = 1)]
+		[ValidateNotNullOrEmpty()]
+		[System.String]$Member,
+
+		[Parameter(Position = 2)]
+		[ValidateSet("Group", "User")]
+		[System.String]$MemberType = "User",
+
+		[Parameter(Position = 3)]
+		[ValidateNotNullOrEmpty()]
+		[System.String]$ComputerName = $env:COMPUTERNAME
+	)
+
+	Begin {
+	}
+
+	Process {
+		$Success = $false
+
+		$Domain = Get-ComputerDomain
+		$Domain = $Domain.Substring(0, $Domain.IndexOf("."))
+
+		$Group = [ADSI]"WinNT://$ComputerName/$LocalGroup,group"	
+		
+		if ($Group.Path -ne $null)	
+		{					
+			$Members = $Group.Invoke("Members", $null) | Select-Object @{Name = "Name"; Expression = {$_[0].GetType().InvokeMember("ADSPath", "GetProperty", $null, $_, $null)}} | Select-Object -ExpandProperty Name		
+			$NewMember = [ADSI]"WinNT://$Domain/$Member,$MemberType"
+							
+			$Path = $NewMember.Path.Remove($NewMember.Path.LastIndexOf(","))
+			
+			if ($Members -inotcontains $Path)
 			{
-				Write-Host "Deleting $Path" 
-				Remove-Item -Path $Path -Confirm:$false -Force -Recurse
-
-				$Counter = 0
-
-				do 
-				{
-					try {
-						$Found = Test-Path -Path $Path -ErrorAction Stop
-					}
-					catch [System.UnauthorizedAccessException] {
-						$Found = $true
-					}
-
-					Start-Sleep -Milliseconds 100
-                
-				} while (($Found -eq $true) -and $Counter++ -lt 50)
-
-				if ($Counter -eq 50)
-				{
-					Write-Warning -Message "Timeout waiting for $Path to delete"
+				try {
+					$Group.Add($NewMember.Path)
+					Write-Log -Message "Successfully added $Member to $($Group.Name)" -Level VERBOSE
+					$Success = $true
+				}
+				catch [Exception] {
+					Write-Log -ErrorRecord $_ -Level ERROR
 				}
 			}
-        }
-        catch [Exception]
-        {
-            Write-Warning -Message $_.Exception.Message
-        }      
+			else
+			{
+				Write-Log -Message "$($NewMember.Name) already a member of $($Group.Name)." -Level VERBOSE
+				$Success = $true
+			}
+		}
+		else
+		{
+			Write-Log -Message "$LocalGroup local group could not be found." -Level VERBOSE
+		}
+
+		Write-Output -InputObject $Success
+	}
+
+	End {
+		
+	}
+}
+
+Function Set-LocalAdminPassword {
+	<#
+		.SYNOPSIS
+			Sets the local administrator password.
+
+		.DESCRIPTION
+			Sets the local administrator password and optionally enables the account if it is disabled.
+
+			If the password is not specified, the user will be prompted to enter the password when the cmdlet is run. The admin account is
+			identified by matching its SID to *-500, which should be unique for the local machine.
+
+		.PARAMETER Password
+			The new password for the local administrator account.
+
+		.PARAMETER EnableAccount
+			Specify to enable the local administrator account if it is disabled.
+
+		.INPUTS
+			System.Security.SecureString
+		
+		.OUTPUTS
+			None
+
+		.EXAMPLE 
+			Set-LocalAdminPassword -EnableAccount
+
+			The cmdlet will prompt the user to enter the new password.
+
+		.NOTES
+			AUTHOR: Michael Haken
+			LAST UPDATE: 10/23/2017
+	#>
+	[CmdletBinding()]
+	[OutputType()]
+    Param (
+        [Parameter(Position=0 , ValueFromPipeline=$true)]
+		[ValidateNotNull()]
+        [System.Security.SecureString]$Password,
+
+		[Parameter()]
+		[Switch]$EnableAccount
+    )
+    Begin {       
+    }
+    
+    Process {
+		$HostName = $env:COMPUTERNAME 
+        $Computer = [ADSI]"WinNT://$HostName,Computer" 
+
+		while ($Password -eq $null) 
+		{
+			$Password = Read-Host -AsSecureString -Prompt "Enter the new administrator password"
+		}
+
+		$Name = Get-LocalUser| Where-Object {$_.SID.Value -match "S-1-5-21-.*-500"} | Select-Object -ExpandProperty Name -First 1
+
+		Write-Log -Message "The local admin account is $Name" -Level VERBOSE
+        $User = [ADSI]"WinNT://$HostName/$Name,User"
+        $PlainTextPass = Convert-SecureStringToString -SecureString $Password
+                
+		Write-Log -Message "Setting password." -Level VERBOSE
+        $User.SetPassword($PlainTextPass)
+                
+		if ($EnableAccount) 
+		{
+			#The 0x0002 flag specifies that the account is disabled
+			#The binary AND operator will test the value to see if the bit is set, if it is, the account is disabled.
+			#Doing a binary OR would add the value to the flags, since it would not be present, the OR would add it
+			if ($User.UserFlags.Value -band "0x0002") 
+			{
+				Write-Log -Message "The account is current disabled with user flags $($User.UserFlags.Value)" -Level VERBOSE
+				#The binary XOR will remove the flag, which enables the account, the XOR means that if both values have the bit set, the result does not
+				#If only 1 value has the bit set, then it will remain set, so we need to ensure that the bit is actually set with the -band above for the XOR to actually
+				#remove the disabled value
+				$User.UserFlags = $User.UserFlags -bxor "0x0002"
+				$User.SetInfo()
+			}
+		}
+    }
+    
+    End {        
+    }       
+}
+
+#endregion
+
+
+#region Host Configuration
+
+Function Reset-WindowsUpdate {
+	<#
+		.SYNOPSIS	
+			The cmdlet resets all of the windows update components and re-registers the dlls.
+
+		.DESCRIPTION
+			Several services are stopped, the log files and directories are renamed, several dlls are re-registered, and then the services are restarted.
+
+		.PARAMETER AutomaticReboot
+			Specify whether the computer should automatically reboot after completing the reset.
+
+		.INPUTS
+			None
+
+		.OUTPUTS
+			None
+
+		.EXAMPLE
+			Reset-WindwsUpdate
+
+			Resets windows update and does not automatically reboot.
+
+		.EXAMPLE
+			Reset-WindowsUpdate -AutomaticReboot
+
+			Resets windows update and automatically reboots the machine.
+
+		.NOTES
+			AUTHOR: Michael Haken
+			LAST UPDATED: 11/14/2016
+
+			The command should be run with administrative credentials.
+	#>
+
+	[CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = "HIGH")]
+	[OutputType()]
+	Param(
+		[Parameter()]
+		[Switch]$AutomaticReboot = $false,
+
+		[Parameter()]
+		[Switch]$Force
+	)
+
+	Begin {
+		if(!(Test-IsLocalAdmin)) {
+			throw "This cmdlet must be run with admin credentials."
+		}
+	}
+
+	Process
+	{
+		$ConfirmMessage = "You are about to reset Windows Update."
+		$WhatIfDescription = "Windows Update reset."
+		$ConfirmCaption = "Reset Windows Update"
+
+		if ($Force -or $PSCmdlet.ShouldProcess($WhatIfDescription, $ConfirmMessage, $ConfirmCaption))
+		{
+			try
+			{
+				Stop-Service -Name BITS -Force -ErrorAction Stop
+			}
+			catch [Exception]
+			{
+				Write-Log -Message "Could not stop the BITS service" -ErrorRecord $_ -Level WARNING
+				Exit 1
+			}
+
+			try
+			{
+				Stop-Service -Name wuauserv -Force -ErrorAction Stop
+			}
+			catch [Exception]
+			{
+				Write-Log -Message "Could not stop the wuauserv service" -ErrorRecord $_ -Level WARNING
+				Exit 1
+			}
+
+			try
+			{
+				Stop-Service -Name AppIDSvc -Force -ErrorAction Stop
+			}
+			catch [Exception]
+			{
+				Write-Log -Message "Could not stop the AppIDSvc service" -ErrorRecord $_ -Level WARNING
+				Exit 1
+			}
+
+			try
+			{
+				Stop-Service -Name CryptSvc -Force -ErrorAction Stop
+			}
+			catch [Exception]
+			{
+				Write-Log -Message "Could not stop the CryptSvc service" -ErrorRecord $_ -Level WARNING
+				Exit 1
+			}
+
+			try
+			{
+				Clear-DnsClientCache -ErrorAction Stop
+			}
+			catch [Exception]
+			{
+				Write-Log -Message "Could not clear the dns client cache" -ErrorRecord $_ -Level WARNING
+			}
+
+			Remove-Item -Path "$env:ALLUSERSPROFILE\Application Data\Microsoft\Network\Downloader\qmgr*.dat"
+
+			if (Test-Path -Path "$env:SYSTEMROOT\winsxs\pending.xml.bak")
+			{
+				Remove-Item -Path "$env:SYSTEMROOT\winsxs\pending.xml.bak" -Recurse -Force
+			}
+
+			if (Test-Path -Path "$env:SYSTEMROOT\winsxs\pending.xml")
+			{
+				Rename-Item -Path "$env:SYSTEMROOT\winsxs\pending.xml" -NewName "$env:SYSTEMROOT\winsxs\pending.xml.bak"
+			}
+
+			if (Test-Path -Path "$env:SYSTEMROOT\SoftwareDistribution.bak")
+			{
+				Remove-Item -Path "$env:SYSTEMROOT\SoftwareDistribution.bak" -Recurse -Force
+			}
+
+			if (Test-Path -Path "$env:SYSTEMROOT\SoftwareDistribution") 
+			{
+				Rename-Item -Path "$env:SYSTEMROOT\SoftwareDistribution" -NewName "$env:SYSTEMROOT\SoftwareDistribution.bak"
+			}
+
+			if (Test-Path -Path "$env:SYSTEMROOT\system32\Catroot2.bak") 
+			{
+				Remove-Item -Path "$env:SYSTEMROOT\system32\Catroot2.bak" -Recurse -Force
+			}
+
+			if (Test-Path -Path "$env:SYSTEMROOT\system32\Catroot2") 
+			{
+				Rename-Item -Path "$env:SYSTEMROOT\system32\Catroot2" -NewName "$env:SYSTEMROOT\system32\Catroot2.bak"
+			}
+
+			if (Test-Path -Path "$env:SYSTEMROOT\WindowsUpdate.log.bak")
+			{
+				Remove-Item -Path "$env:SYSTEMROOT\WindowsUpdate.log.bak" -Recurse -Force
+			}
+
+			if (Test-Path -Path "$env:SYSTEMROOT\WindowsUpdate.log")
+			{
+				Rename-Item -Path "$env:SYSTEMROOT\WindowsUpdate.log" -NewName "$env:SYSTEMROOT\WindowsUpdate.log.bak"
+			}
+
+			& "$env:SYSTEMROOT\system32\sc.exe" sdset "BITS" "D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWLOCRRC;;;AU)(A;;CCLCSWRPWPDTLOCRRC;;;PU)" | Out-Null
+			& "$env:SYSTEMROOT\system32\sc.exe" sdset "wuauserv" "D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWLOCRRC;;;AU)(A;;CCLCSWRPWPDTLOCRRC;;;PU)" | Out-Null
+
+			regsvr32.exe /s atl.dll 
+			regsvr32.exe /s urlmon.dll 
+			regsvr32.exe /s mshtml.dll 
+			regsvr32.exe /s shdocvw.dll 
+			regsvr32.exe /s browseui.dll 
+			regsvr32.exe /s jscript.dll 
+			regsvr32.exe /s vbscript.dll 
+			regsvr32.exe /s scrrun.dll 
+			regsvr32.exe /s msxml.dll 
+			regsvr32.exe /s msxml3.dll 
+			regsvr32.exe /s msxml6.dll 
+			regsvr32.exe /s actxprxy.dll 
+			regsvr32.exe /s softpub.dll 
+			regsvr32.exe /s wintrust.dll 
+			regsvr32.exe /s dssenh.dll 
+			regsvr32.exe /s rsaenh.dll 
+			regsvr32.exe /s gpkcsp.dll 
+			regsvr32.exe /s sccbase.dll 
+			regsvr32.exe /s slbcsp.dll 
+			regsvr32.exe /s cryptdlg.dll 
+			regsvr32.exe /s oleaut32.dll 
+			regsvr32.exe /s ole32.dll 
+			regsvr32.exe /s shell32.dll 
+			regsvr32.exe /s initpki.dll 
+			regsvr32.exe /s wuapi.dll 
+			regsvr32.exe /s wuaueng.dll 
+			regsvr32.exe /s wuaueng1.dll 
+			regsvr32.exe /s wucltui.dll 
+			regsvr32.exe /s wups.dll 
+			regsvr32.exe /s wups2.dll 
+			regsvr32.exe /s wuweb.dll 
+			regsvr32.exe /s qmgr.dll 
+			regsvr32.exe /s qmgrprxy.dll 
+			regsvr32.exe /s wucltux.dll 
+			regsvr32.exe /s muweb.dll 
+			regsvr32.exe /s wuwebv.dll
+			regsvr32.exe /s wudriver.dll
+			netsh winsock reset | Out-Null
+			netsh winsock reset proxy | Out-Null
+
+			Start-Service -Name BITS
+			Start-Service -Name wuauserv
+			Start-Service -Name AppIDSvc
+			Start-Service -Name CryptSvc
+
+			Write-Log -Message "Successfully reset Windows Update" -Level VERBOSE
+
+			if ($AutomaticReboot) 
+			{
+				Restart-Computer -Force
+			}
+			else 
+			{
+				$Title = "Reboot Now"
+				$Message = "A reboot is required to complete the reset, reboot now?"
+
+				$Yes = New-Object -TypeName System.Management.Automation.Host.ChoiceDescription "&Yes", `
+				"Reboots the computer immediately."
+
+				$No = New-Object -TypeName System.Management.Automation.Host.ChoiceDescription "&No", `
+				"Does not reboot the computer."
+
+				$Options = [System.Management.Automation.Host.ChoiceDescription[]]($Yes, $No)
+
+				$Result = $host.ui.PromptForChoice($Title, $Message, $Options, 0) 
+
+				if ($Result -eq 0)
+				{
+					Restart-Computer -Force
+				}
+			}
+		}
 	}
 
 	End {
 	}
 }
 
-Function Invoke-Using {
-    <#
-        .SYNOPSIS
-            Provides a C#-like using() block to automatically handle disposing IDisposable objects.
+Function Enable-WinRM {
+	<#
+		.SYNOPSIS
+			Enables WinRM on a host.
 
-        .DESCRIPTION
-            The cmdlet takes an InputObject that should be an IDisposable, executes the ScriptBlock, then disposes the object.
+		.DESCRIPTION
+			The function enables PowerShell remoting, sets WinRM to automatically start, adds the provided to trusted hosts (which defaults to all hosts), and creates the firewall rule to allow inbound WinRM.
 
-        .PARAMETER InputObject
-            The object that needs to be disposed of after running the scriptblock.
+		.PARAMETER TrustedHosts
+			The hosts that are trusted for remote mamangement. This can be an IP range, a subnet, or a wildcard. This defaults to all hosts: "*".
 
-        .PARAMETER ScriptBlock
-            The scriptblock to execute with the "using" variable.
+		.INPUTS
+			System.String
+
+				The value can be piped to Enable-WinRM.
+
+		.OUTPUTS
+			None
+
+		.EXAMPLE
+			Enable-WinRM -TrustedHosts "192.168.100.0-192.168.100.255"
+
+		.NOTES
+			This command should be run with administrative credentials
+
+			AUTHOR: Michael Haken
+			LAST UPDATED: 2/27/2016
+	#>
+	[CmdletBinding()]
+	[OutputType()]
+	Param(
+		[Parameter(Position = 0, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true)]
+		[ValidateNotNull()]
+		[System.String]$TrustedHosts = "*"
+	)
+
+	Begin {
+		if (!(Test-IsLocalAdmin)) {
+			throw "This cmdlet must be run with admin credentials."
+		}
+	}
+
+	Process
+	{
+		Set-NetConnectionProfile -NetworkCategory Private
+		Enable-PSRemoting -Force 
+		Set-Service -Name WinRM -StartupType Automatic
+		Start-Service -Name WinRM
+		Set-Item WSMan:\localhost\Client\TrustedHosts -Value $TrustedHosts -Force
+		Restart-Service -Name WinRM
+		New-NetFirewallRule -Name "Allow_WinRM" -DisplayName "Windows Remote Management (WinRM)" -Description "Allows WinRM ports 5985-5986 inbound." -Protocol TCP -LocalPort 5985,5986 -Enabled True -Action Allow -Profile Any
+		Write-Log -Message "WinRM Enabled" -Level VERBOSE
+	}
+	
+	End {
+	}
+}
+
+Function Set-AutoLogon {
+	<#
+		.SYNOPSIS
+			Enables or disables automatic logon for a user.
+
+		.DESCRIPTION
+			The cmdlet enables automatic logon for a specified user.
+
+		.EXAMPLE
+			Set-AutoLogon -Enable -Username "contoso\john.smith" -Password "MySecureP@$$W0rd"
+
+			Creates an automatic logon for john.smith. The next time the server boots, this user will be automatically logged on.
+
+		.EXAMPLE
+			Set-AutoLogon -Disable
+
+		.PARAMETER Enable
+			Specifies that auto logon should be enabled. This is the default.
+
+		.PARAMETER Username
+			The user that should be automatically logged in.
+
+		.PARAMETER Password
+			The password for the user. The password is stored in plain text in the registry.
+
+		.PARAMETER Disable
+			Disables auto logon and clears any stored password.
+
+		.INPUTS
+			None
+
+		.OUTPUTS
+			None
+
+		.NOTES
+			AUTHOR: Michael Haken
+			LAST UPDATE: 11/14/2016
+	#>
+	[CmdletBinding()]
+	[OutputType()]
+	Param(
+		[Parameter(Mandatory=$true, ParameterSetName="Enable")]
+		[Switch]$Enable,
+
+		[Parameter(Mandatory=$true, ParameterSetName="Enable")]
+		[ValidateNotNullOrEmpty()]
+		[System.String]$UserName,
+
+		[Parameter(Mandatory=$true, ParameterSetName="Enable")]
+		[ValidateNotNull()]
+		[System.String]$Password,
+
+		[Parameter(Mandatory=$true, ParameterSetName="Disable")]
+		[Switch]$Disable	
+	)
+
+	Begin {}
+
+	Process {
+		if ($Enable) {
+			Write-Log "Enabling automatic logon." -Level VERBOSE
+			New-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name AutoAdminLogon -Value 1 -ErrorAction SilentlyContinue | Out-Null
+			New-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name DefaultUserName -Value $UserName -ErrorAction SilentlyContinue | Out-Null
+			New-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name DefaultPassword -Value $Password -ErrorAction SilentlyContinue | Out-Null
+		}
+		elseif ($Disable) {
+			Write-Log "Disabling automatic logon." -Level VERBOSE
+			Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name AutoAdminLogon -Value 0 -ErrorAction SilentlyContinue | Out-Null
+			Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name DefaultUserName -Value "" -ErrorAction SilentlyContinue | Out-Null
+			Remove-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name DefaultPassword -ErrorAction SilentlyContinue | Out-Null
+		}
+	}
+
+	End {}
+}
+
+Function Set-Pagefile {
+	<#
+		.SYNOPSIS
+			Configures the size of the page file.
+
+		.DESCRIPTION
+			This cmdlet sets the page file to the specified size or a default, optimal size.
+
+		.PARAMETER InitialSize
+			The initial size of the page file. This defaults to the maximum size.
+
+		.PARAMETER MaximumSize
+			The maximum size of the page file. This defaults to the computer system's RAM plus 10MB up to a size of 32GB + 10MB as both the initial and maximum size.
+
+		.INPUTS 
+			System.Int32
+
+		.OUTPUTS
+			None
 
         .EXAMPLE
-            Invoke-Using ([System.IO.StreamWriter]$Writer = New-Object -TypeName System.IO.StreamWriter([System.Console]::OpenStandardOutput())) {
-                $Writer.AutoFlush = $true
-                [System.Console]::SetOut($Writer)
-                $Writer.Write("This is a test.")
-            }
+			Set-Pagefile
 
-            The StreamWriter is automatically disposed of after the script block is executed. Future calls to $Writer would fail. Please notice
-            that the open "{" bracket needs to be on the same line as the cmdlet.
+			Sets the page file size manually.
 
-        .INPUTS
-            System.Management.Automation.ScriptBlock
+		.NOTES
+			AUTHOR: Michael Haken
+			LAST UPDATE: 8/24/2016
+	#>
+	[CmdletBinding()]
+	[OutputType()]
+	Param(
+		[Parameter(Position = 0, ValueFromPipeline = $true)]
+		[System.Int32]$MaximumSize = -1,
 
-        .OUTPUTS
-            None
+		[Parameter(Position = 1)]
+		[System.Int32]$InitialSize = -1
+	)
 
-        .NOTES
+	Begin {}
+
+	Process {
+		[System.Int32]$ProductType = Get-CimInstance -ClassName Win32_OperatingSystem -Property ProductType | Select-Object -ExpandProperty ProductType
+
+		if ($ProductType -ne 1)
+		{
+			Write-Log -Message "Checking Pagefile Configuration" -Level VERBOSE
+			$CS = Get-CimInstance -ClassName Win32_ComputerSystem
+
+			if ($CS.AutomaticManagedPagefile -eq $true) {
+				Write-Log -Message "System configured to use Automatic Managed Pagefile, reconfiguring"
+
+				try {
+					$CS.AutomaticManagedPagefile = $false
+				
+					if ($MaximumSize -le 0)
+					{
+						# RAM + 10 MB, with maximum of 32GB + 10MB
+						$InstalledMem = $CS.TotalPhysicalMemory
+						$MaximumSize = (($InstalledMem + 10MB), (32GB+10MB) | Measure-Object -Minimum).Minimum / 1MB
+					}
+
+					if ($InitialSize -gt $MaximumSize -or $InitialSize -le 0)
+					{
+						$InitialSize = $MaximumSize
+					}
+
+					$CPF = Get-CimInstance -ClassName Win32_PageFileSetting
+					$CPF.InitialSize= $InitialSize
+					$CPF.MaximumSize= $MaximumSize
+					$CPF.Put() | Out-Null
+				}
+				catch [Exception] {
+					Write-Log -Message "Problem reconfiguring pagefile." -ErrorRecord $_ -Level WARNING
+				}
+
+				$CPF = Get-CimInstance -ClassName Win32_PageFileSetting
+				Write-Log -Message "Pagefile set to manual, initial/maximum size: $($CPF.InitialSize)MB / $($CPF.MaximumSize)MB." -Level VERBOSE
+			}
+			else {
+				Write-Log -Message "Manually configured page file, skipping configuration" -Level VERBOSE
+			}
+		}
+		else
+		{
+			Write-Log -Message "Page file settings are only available on the Server operating system." -Level WARNING
+		}
+	}
+	
+	End {
+	}
+}
+
+Function Set-HighPerformancePowerPlan {
+	<#
+		.SYNOPSIS
+			Enables the high performance power plan on the computer.
+
+		.DESCRIPTION
+			This cmdlet sets the active power plan to the High Performance setting.
+
+		.INPUTS
+			None
+
+		.OUTPUTS
+			None
+
+        .EXAMPLE
+			Set-HighPerformancePowerPlan
+
+			Sets the High Performance plan to active.
+
+		.NOTES
+			AUTHOR: Michael Haken
+			LAST UPDATE: 8/24/2016
+	#>
+	[CmdletBinding()]
+	[OutputType()]
+	Param(
+		[Parameter()]
+		[Switch]$PassThru
+	)
+
+	Begin {
+	}
+
+	Process {
+        Write-Log -Message "Configuring Power Plan" -Level VERBOSE
+
+        $PowerPlan = Get-CimInstance -Name root\cimv2\power -ClassName Win32_PowerPlan -Filter "ElementName = 'High Performance'"          
+        $Temp = Invoke-CimMethod -InputObject $PowerPlan -MethodName Activate        
+        $CurrentPlan = Get-CimInstance -Namespace root\cimv2\power -ClassName Win32_PowerPlan | Where-Object { $_.IsActive }
+
+        Write-Log -Message "Power Plan active: $($CurrentPlan.ElementName)" -Level VERBOSE
+
+		if ($PassThru)
+		{
+			Write-Output -InputObject $CurrentPlan
+		}
+	}
+
+	End {
+	}
+}
+
+Function Disable-SSLv3 {
+	<#
+		.SYNOPSIS
+			Completely disables the use of SSLv3.
+
+		.DESCRIPTION
+			This cmdlet disables SSLv3 by use of both the client and server components.
+
+		.INPUTS
+			None
+
+		.OUTPUTS
+			None
+
+        .EXAMPLE
+			Disable-SSLv3
+
+			Disables SSLv3 on the system.
+
+		.NOTES
+			AUTHOR: Michael Haken
+			LAST UPDATE: 8/24/2016
+	#>
+	[CmdletBinding()]
+	[OutputType()]
+	Param(
+	)
+
+	Begin {
+		#Disable SSLv3 to protect against POODLE scan
+		$ServerRegKey = "HKLM:\System\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\SSL 3.0\Server"
+		$ClientRegKey = "HKLM:\System\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\SSL 3.0\Client"
+        $ServerRegName = "Enabled"
+		$ClientRegName = "DisabledByDefault"
+	}
+
+	Process {
+		Write-Log -Message "Disabling SSLv3 protocol." -Level VERBOSE
+
+		if (!(Test-Path -Path $ServerRegKey)) {
+			New-Item -Path $ServerRegKey | Out-Null
+		}
+
+		New-ItemProperty -Path $ServerRegKey -Name $ServerRegName -Value 0 -PropertyType DWORD | Out-Null
+
+		if (!(Test-Path -Path $ClientRegKey)) {
+			New-Item -Path $ClientRegKey | Out-Null
+		}
+
+		New-ItemProperty -Path $ClientRegKey -Name $ServerRegName -Value 0 -PropertyType DWORD | Out-Null
+		New-ItemProperty -Path $ClientRegKey -Name $ClientRegName -Value 1 -PropertyType DWORD | Out-Null
+
+		Write-Log -Message "Successfully disabled SSLv3." -Level VERBOSE
+	}
+
+	End {		
+	}        
+}
+
+Function Set-NetAdapterDnsSuffix {
+	<#
+		.SYNOPSIS
+			Sets the DNS suffix search order for TCP/IP.
+
+		.DESCRIPTION
+			This cmdlet allows you to specify either a list of DNS suffixes, a single DNS suffix that should be at the top of the ordering and optionally replace
+			all other entries, or revert to using the primary and connection specific suffixes with optional domain name devolution (the "append parent suffixes of the primary dns suffix" option).
+
+		.PARAMETER Domains
+			The domains to set as the DNS suffix search list.
+
+		.PARAMETER DefaultDomain
+			The domain that should appear at the top of the search list. If it does not currently exist in the list it will be added, otherwise it will be moved to the top.
+
+		.PARAMETER Replace
+			Indicates whether the default domain should replace all of the current entries in the list. This is equivalent to specifying the parameter -Domains @("my.newdomain.com").
+		
+		.PARAMETER AppendPrimaryAndConnectionSpecificSuffixes
+			This parameter removes all entries from the Search List and uses provided primary and connection specific DNS suffixes when resolving unqualified domain names.
+
+		.PARAMETER UseDomainNameDevolution
+			This parameter indiciates that domain name devolution will be used. The resolver performs name devolution on the primary DNS suffix. 
+			It strips off the leftmost label and tries the resulting domain name until only two labels remain. For example, if your primary DNS suffix 
+			is mfg.fareast.isp01-ext.com, and then queried for the unqualified, single-label name "coffee," the resolver queries in order the following FQDNs:
+			
+				coffee.fareast.isp01-ext.com.
+				coffee.isp01-ext.com.
+
+		.PARAMETER ReturnStringErrorMessage
+			If this is specified, instead of an integer return value, the string representation of the error code is returned.
+
+		.EXAMPLE
+			$Result = Set-NetAdapterDnsSuffix -Domains @("contoso.com", "tailspintoys.com")
+
+			This sets the DNS suffix search list to the domains provided. The Result indicates the success or failure code of the operation.
+
+		.EXAMPLE
+			$Result = Set-NetAdapterDnsSuffix -DefaultDomain "contoso.com"
+
+			This sets contoso.com to be the first entry in the search list and does not modify any existing entries.
+
+		.EXAMPLE
+			$Result = Set-NetAdapterDnsSuffix -AppendPrimaryAndConnectionSpecificSuffixes
+
+			This removes all items in the Search List and uses primary and connection specific suffixes (like those received from DHCP).
+
+		.INPUTS
+			System.String[]
+
+		.OUTPUTS
+			System.Int32
+
+			The output is 0 for success and non-zero for failure. The exit code may correspond to a known error message that can be accessed through the
+			Get-NetAdapterErrorCode cmdlet.
+		
+		.NOTES
             AUTHOR: Michael Haken
-			LAST UPDATE: 6/21/2017
+			LAST UPDATE: 10/2/2017
+	#>
+	[CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = "HIGH")]
+	[OutputType([System.Int32])]
+	Param(
+		[Parameter(Mandatory = $true, ValueFromPipeline = $true, ParameterSetName = "Domains")]
+		[ValidateNotNullOrEmpty()]
+		[System.String[]]$Domains = @(),
 
-    #>
-	[Alias("using")]
-    [CmdletBinding()]
-    Param(
-        [Parameter(Mandatory = $true)]
-        [AllowEmptyString()]
-        [AllowEmptyCollection()]
-        [AllowNull()]
-        [System.Object]$InputObject,
- 
-        [Parameter(Mandatory = $true, ValueFromPipeline = $true)]
-        [System.Management.Automation.ScriptBlock]$ScriptBlock
-    )
-    
-    Begin {
-    }
-    
-    Process 
-    {       
-        try
-        {
-            & $ScriptBlock
-        }
-        finally
-        {
-            if ($InputObject -ne $null -and $InputObject -is [System.IDisposable])
-            {
-                $InputObject.Dispose()
-            }
-        }
+		[Parameter(Mandatory = $true, ParameterSetName = "UpdateDefault")]
+		[ValidateNotNullOrEmpty()]
+		[System.String]$DefaultDomain,
+		
+		[Parameter(ParameterSetName = "UpdateDefault")]
+		[System.Boolean]$Replace = $false,
+
+		[Parameter(ParameterSetName = "AppendPrimary", Mandatory = $true)]
+		[Switch]$AppendPrimaryAndConnectionSpecificSuffixes,
+
+		[Parameter(ParameterSetName = "AppendPrimary")]
+		[System.Boolean]$UseDomainNameDevolution,
+		
+		[Parameter()]
+		[Switch]$ReturnStringErrorMessage,
+
+		[Parameter()]
+		[Switch]$Force
+	)
+
+	Begin {
+		if (-not (Test-IsLocalAdmin)) {
+			throw "You must run this cmdlet with admin credentials."
+		}
+	}
+	
+	Process {
+		$Result = 65
+
+		switch ($PSCmdlet.ParameterSetName)
+		{
+			"AppendPrimary" {
+				$Path = "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters"
+
+				Write-Log -Message "Updating registry at $Path." -Level VERBOSE
+				$Prop = Get-ItemProperty -Path $Path -Name SearchList
+
+				if ($Prop -eq $null)
+				{
+					New-ItemProperty -Path $Path -Name SearchList -Value "" -PropertyType ([Microsoft.Win32.RegistryValueKind]::String) | Out-Null
+				}
+				else
+				{
+					# This will create the value if it doesn't exist, or update the existing property,
+					# but we can't specify a property type with it
+					Set-ItemProperty -Path $Path -Name SearchList -Value "" | Out-Null
+				}
+
+				if ($PSBoundParameters.ContainsKey("UseDomainNameDevolution")) {
+					$Prop = Get-ItemProperty -Path $Path -Name UseDomainNameDevolution
+
+					if ($Prop -eq $null)
+					{
+						New-ItemProperty -Path $Path -Name UseDomainNameDevolution ([System.Int32]$UseDomainNameDevolution) -PropertyType ([Microsoft.Win32.RegistryValueKind]::DWord) | Out-Null
+					}
+					else
+					{
+						Set-ItemProperty -Path $Path -Name UseDomainNameDevolution -Value ([System.Int32]$UseDomainNameDevolution) | Out-Null
+					}
+				}
+
+				$Result = 0
+
+				break
+			}
+			{$_ -in @("UpdateDefault", "Domains")} {
+
+				$NewDns = @()
+
+				# Just set the new domains to the provided ones
+				if ($PSCmdlet.ParameterSetName -eq "Domains")
+				{
+					$NewDns = $Domains
+				}
+				# Otherwise, if we're replacing, only add the new default domain
+				elseif ($Replace)
+				{
+					$NewDns += $DefaultDomain
+				}
+				# Otherwise, we got a default domain, but we want to move it to the top
+				else
+				{
+					[System.String[]]$Dns = (Get-CimClass -ClassName Win32_NetworkAdapterConfiguration).CimClassProperties["DNSDomainSuffixSearchOrder"].Value
+
+					$Index = [System.Array]::IndexOf($Dns, $DefaultDomain)
+
+					# Index will be -1 if not found, otherwise, we found it, so move it first
+					if ($Index -ge 0)
+					{
+						$NewDns += $Dns[$Index]
+					}
+
+					for ($i = 0; $i -lt $Dns.Length; $i++)
+					{
+						if ($i -ne $Index)
+						{
+							$NewDns += $Dns[$i]
+						}
+					}
+				}
+
+				Write-Log -Message "Calling SetDNSSuffixSearchOrder CIM method." -Level VERBOSE
+				$Result = (Invoke-CimMethod -ClassName Win32_NetworkAdapterConfiguration -MethodName SetDNSSuffixSearchOrder -Arguments @{"DNSDomainSuffixSearchOrder" = $NewDns}).ReturnValue
+				
+				break
+			}
+		}
+
+		if ($ReturnStringErrorMessage)
+		{
+			if ($script:NicErrorMessages.ContainsKey([System.UInt32]$Result) )
+			{
+				Write-Output -InputObject ($script:NicErrorMessages[[System.UInt32]$Result])
+			}
+			else
+			{
+				Write-Output -InputObject "$Result"
+			}
+		}
+		else
+		{
+			Write-Output -InputObject $Result
+		}
+	}
+
+	End {
+
+	}
+}
+
+Function Set-NET461InstallBlock {
+	<#
+		.SYNOPSIS
+			Sets a temporary installation block for .NET version 4.6.1 (KB3133990) or disables the block.
+
+		.DESCRIPTION
+			This cmdlet sets a temporary installation block for .NET 4.6.1 which is sometimes needed is a program is not compatible with this version and you don't want it to be accidentally installed
+			through automatic updates. The cmdlet can also disable the block.
+
+		.PARAMETER Disable
+			This disables the block. If the parameter is not specified, the block is enabled.
+
+		.INPUTS
+			None
+
+		.OUTPUTS
+			None
+
+        .EXAMPLE
+			Set-NET461InstallBlock
+
+			Blocks the installation of .NET 4.6.1
+
+		.NOTES
+			AUTHOR: Michael Haken
+			LAST UPDATE: 8/24/2016
+	#>
+	[CmdletBinding()]
+	[OutputType()]
+	Param(
+		[Parameter()]
+		[Switch]$Disable
+	)
+
+	Begin {}
+
+	Process {
+        Write-Log -Message "Set temporary installation block for .NET Framework 4.6.1 (KB3133990)." -Level VERBOSE
+        $RegKey = "HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\WU"
+        $RegName= "BlockNetFramework461"
+
+		if (-not $Disable)
+		{
+			if (!(Test-Path -Path $RegKey)) {
+				New-Item -Path "HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP" -Name "WU" | Out-Null
+			}
+
+			if ((Get-ItemProperty -Path $RegKey -Name $RegName -ErrorAction SilentlyContinue) -eq $null) {
+				New-ItemProperty -Path $RegKey -Name $RegName -Value 1 -PropertyType DWORD  | Out-Null
+			}
+			else {
+				Set-ItemProperty -Path $RegKey -Name $RegName -Value 1 | Out-Null
+			}
+
+			if ((Get-ItemProperty -Path $RegKey -Name $RegName -ErrorAction SilentlyContinue) -eq $null) {
+				Write-Log -Message "Unable to set registry key $RegKey\$RegName." -Level WARNING 
+			}
+		}
+		else
+		{
+			if (Test-Path -Path $RegKey) {				
+				if ((Get-ItemProperty -Path $RegKey -Name $RegName -ErrorAction SilentlyContinue) -eq $null) {
+					Remove-ItemProperty -Path $RegKey -Name $RegName | Out-Null
+				}
+
+				if ((Get-ItemProperty -Path $RegKey -Name $RegName -ErrorAction SilentlyContinue) -eq $null) {
+					Write-Log -Message "Unable to set registry key $RegKey\$RegName." -Level WARNING 
+				}
+			}
+		}
     }
 
-    End {
-    }
+	End {}
+}
+
+Function Set-RunOnceScript {
+	<#
+		.SYNOPSIS
+			Adds a RunOnce script that launches a PowerShell script at user logon.
+
+		.DESCRIPTION
+			This cmdlet adds a RunOnce script that launches on user logon. If the specified Name already exists as a RunOnce entry, it is removed first.
+
+		.PARAMETER Command
+			The command to run. This can be the path to a script file, or native PowerShell commands.
+
+		.PARAMETER StoreAsPlainText
+			Stores the commands as plain text instead of Base64.
+
+		.PARAMTER RunFile
+			Specifies that the command parameter was the path to a script file and not native PowerShell commands.
+
+		.PARAMETER Name
+			The name of the RunOnce entry in the registry.
+
+		.INPUTS
+			None
+
+		.OUTPUTS
+			None
+
+        .EXAMPLE
+			Set-RunOnceScript -Command "c:\test.ps1" -RunFile
+
+			Configures the RunOnce setting to run the c:\test.ps1 file when a user logs on.
+
+		.EXAMPLE 
+			Set-RunOnceScript -Command "Get-Service" -Name "ListServices"
+
+			Configures the RunOnce setting to run the Get-Service cmdlet when a user logs on.
+
+		.NOTES
+			AUTHOR: Michael Haken
+			LAST UPDATE: 8/26/2016
+	#>
+	[CmdletBinding()]
+	[OutputType()]
+	Param(
+		[Parameter(Mandatory = $true)]
+		[ValidateNotNullOrEmpty()]
+		[System.String]$Command,
+
+		[Parameter(ParameterSetName = "Text")]
+		[Switch]$StoreAsPlainText,
+
+		[Parameter(ParameterSetName =" File")]
+		[Switch]$RunFile,
+
+		[Parameter()]
+		[ValidateNotNullOrEmpty()]
+		[System.String]$Name
+	)
+
+	Begin {
+
+	}
+
+	Process {
+		$Path = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce"
+        
+		if ([System.String]::IsNullOrEmpty($Name))
+		{
+			$Name = $script:RunOnceTaskName
+		}
+
+        Remove-ItemProperty -Path $Path -Name $Name -ErrorAction SilentlyContinue
+
+		$RunOnce = "$PSHome\PowerShell.exe -NoProfile -NoLogo -NoExit -ExecutionPolicy Unrestricted"
+
+		if ($StoreAsPlainText) {		
+			$Command = $Command.Replace("`"", "\`"").Replace("`n","").Replace("`r","").Replace("`t","")
+			#$RunOnce += " -Command `"& {$Command}`""
+            $RunOnce += " -Command `"$Command`""
+		}
+		elseif ($RunFile) {
+            $RunOnce += " -File `"$Command`""
+        }
+		else {
+			$Bytes = [System.Text.Encoding]::Unicode.GetBytes($Command)
+			$EncodedCommand = [System.Convert]::ToBase64String($Bytes)
+			$RunOnce += " -EncodedCommand $EncodedCommand"
+		}
+
+		if (!(Test-Path -Path $Path)) {
+			New-Item -Path $Path | Out-Null
+		}
+		
+		Write-Log -Message "Setting RunOnce: $RunOnce" -Level VERBOSE
+		New-ItemProperty -Path $Path -Name $Name -Value "$RunOnce" -PropertyType String | Out-Null
+		Write-Log -Message "Successfully set RunOnce." -Level VERBOSE
+	}
+
+	End {
+	}
 }
 
 Function Invoke-WmiRepositoryRebuild {
@@ -7385,6 +7232,7 @@ Function Invoke-WmiRepositoryRebuild {
 			LAST UPDATE: 8/21/2017
     #>
 	[CmdletBinding()]
+	[OutputType()]
 	Param()
 
 	Begin {
@@ -7397,10 +7245,10 @@ Function Invoke-WmiRepositoryRebuild {
 			[System.String]$Message = ([System.String]::Join("`r`n", $Result))
 
 			if ($Message -ilike "*An error occurred*") {
-                Write-Error -Message $Message -Category FromStdErr -TargetObject $_.FullName
+                Write-Log -Message $Message -Level ERROR
             }
 			else {
-				Write-Verbose -Message ([System.String]::Join("`r`n", $Result))
+				Write-Log -Message ([System.String]::Join("`r`n", $Result)) -Level VERBOSE
 			}
 		}
 	}
@@ -7409,155 +7257,1115 @@ Function Invoke-WmiRepositoryRebuild {
 	}
 }
 
-Function Merge-Hashtables {
+Function Get-NetAdapterErrorCode {
 	<#
 		.SYNOPSIS 
-			Merges two hashtables.
+			Returns the string error message from a net adapter WMI method return value for the Win32_NetworkAdapterConfiguration class.
 
 		.DESCRIPTION
-			The cmdlet merges a second hashtable with a source one. The second hashtable will add or overwrite its values to a copy of the first. Neither of the two input hashtables are modified.
+			Attempts the find the string error message corresponding to the SetDNSSuffixSearchOrder method call on the Win32_NetworkAdapterConfiguration class. 
+			If the error message is not found, the error code is returned as a string. This cmdlet can be used with the Set-NetAdapterDnsSuffix cmdlet to translate
+			the return code.
 
-		.PARAMETER Source
-			The source hashtable that will be added to or overwritten. The original hashtable is not modified.
-
-		.PARAMETER Update
-			The hashtable that will be merged into the source. This hashtable is not modified.
+		.PARAMETER ErrorCode
+			The error code returned by the Win32_NetworkAdapterConfiguration class method.
 
 		.EXAMPLE
-			Merge-Hashtables -Source @{"Key" = "Test"} -Data @{"Key" = "Test2"; "Key2" = "Test3"}
+			Get-NetAdapterErrorCode -ErrorCode 73
 
-			This cmdlet results in a hashtable that looks like as follows: @{"Key" = "Test2"; "Key2" = "Test3"}
+			This returns the string "Invalid domain name".
 
 		.INPUTS
-            None
+			System.Int32
 
-        .OUTPUTS
-            System.Collections.Hashtable
+		.OUTPUTS
+			System.String
 
-        .NOTES
+		.NOTES
             AUTHOR: Michael Haken
-			LAST UPDATE: 8/21/2017	
+			LAST UPDATE: 10/2/2017
 	#>
-
 	[CmdletBinding()]
+	[OutputType([System.String])]
 	Param(
-		[Parameter(Mandatory = $true)]
-		[ValidateNotNull()]
-		[System.Collections.Hashtable]$Source,
-
-		[Parameter(Mandatory = $true)]
-		[ValidateNotNull()]
-		[System.Collections.Hashtable]$Update
+		[Parameter(Mandatory = $true, ValueFromPipeline = $true, Position = 0)]
+		[System.UInt32]$ErrorCode
 	)
 
 	Begin {
 	}
 
 	Process {
-		# Make a copy of the source so it is not modified
-		[System.Collections.Hashtable]$Output = $Source.Clone()
-
-		# Check each key in the update to see if the output already has it
-		foreach ($Key in $Update.Keys)
+		if ($script:NicErrorMessages.ContainsKey($ErrorCode))
 		{
-			# If it does, update the value
-			if ($Output.ContainsKey($Key))
-			{
-				$Output[$Key] = $Update[$Key]
-			}
-			else 
-			{
-				# If not, add the key/value
-				$Output.Add($Key, $Update[$Key])
-			}
+			Write-Output -InputObject $script:NicErrorMessages[$ErrorCode]
 		}
-
-		Write-Output -InputObject $Output
+		else
+		{
+			Write-Output -InputObject "$ErrorCode"
+		}
 	}
 
 	End {
 	}
 }
 
-Function ConvertTo-Hashtable {
+Function Get-ComputerDomain {
 	<#
-		.SYNOPSIS 
-			Converts a PSCustomObject to a Hashtable.
+		.SYNOPSIS
+			Retrieves the domain the computer is joined to.
 
 		.DESCRIPTION
-			The cmdlet takes a PSCustomObject and converts all of its property key/values to a Hashtable. You can specify keys from the PSCustomObject to exclude or specify that empty values not be added to the Hashtable.
+			This cmdlet retrieves the Active Directory domain the computer is joined to. If the computer is not domain joined, the computer name will be returned.
 
-		.PARAMETER InputObject
-			The PSCustomObject to convert.
+		.PARAMETER ComputerName
+			The name of the computer to connect to and retrieve the domain information. If this parameter is omitted, information from the local computer is used.
 
-		.PARAMETER Exclude
-			The key values from the PSCustomObject not to include in the Hashtable.
+		.PARAMETER Credential
+			The credential to use to connect to the remote computer.
 
-		.PARAMETER NoEmpty
-			Specify to not include keys with empty or null values from the PSCustomObject in the Hashtable.
+		.PARAMETER CimSession
+			An existing CimSession to use to connect to a remote machine.
 
-		.EXAMPLE
-			ConvertTo-Hashtable -InputObject ([PSCustomObject]@{"Name" = "Smith"})
-
-			Converts the inputted PSCustomObject to a hashtable.
+		.INPUTS
+			System.String
+		
+		.OUTPUTS
+			System.String
 
 		.EXAMPLE 
-			ConvertTo-Hashtable -InputObject ([PSCustomObject]@{"LastName" = "Smith", "Middle" = "", "FirstName" = "John"}) -NoEmpty -Exclude @("FirstName")
+			Get-ComputerDomain
 
-			Converts the inputted PSCustomObject to a hashtable. The empty property, Middle is excluded, and the property FirstName is excluded explicitly. This results
-			in a hashtable @{"LastName" = "Smith"}
+			Gets the AD domain of the local computer.
+
+		.NOTES
+			AUTHOR: Michael Haken
+			LAST UPDATE: 10/23/2017
+	#>
+	[CmdletBinding(DefaultParameterSetName = "Computer")]
+	[OutputType([System.String])]
+	Param(
+		[Parameter(ParameterSetName = "Computer", ValueFromPipeline = $true)]
+		[ValidateNotNullOrEmpty()]
+		[System.String]$ComputerName = [System.String]::Empty,
+
+		[Parameter(ParameterSetName = "Computer")]
+		[ValidateNotNull()]
+		[System.Management.Automation.Credential()]
+		[System.Management.Automation.PSCredential]$Credential = [System.Management.Automation.PSCredential]::Empty,
+
+		[Parameter(ParameterSetName = "Session")]
+		[ValidateNotNull()]
+        [Microsoft.Management.Infrastructure.CimSession]$CimSession = $null
+	)
+
+	Begin {
+
+	}
+
+	Process {
+		[System.Collections.Hashtable]$Splat = @{}
+		[System.Boolean]$EndSession = $false
+
+		switch ($PSCmdlet.ParameterSetName)
+		{
+			"Computer" {
+
+				if ($Credential -eq [System.Management.Automation.PSCredential]::Empty)
+				{
+					if (-not [System.String]::IsNullOrEmpty($ComputerName) -and $script:LocalNames -inotcontains $ComputerName)
+					{
+						$Splat.Add("ComputerName", $ComputerName)
+					}
+				}
+				else
+				{
+					if ([System.String]::IsNullOrEmpty($ComputerName))
+					{
+						$ComputerName = $env:COMPUTERNAME
+					}
+
+					$CimSession = New-CimSession -Credential $Credential -ComputerName $ComputerName
+					$Splat.Add("CimSession", $CimSession)
+					$EndSession = $true
+				}
+
+				break
+			}
+			"Session" {
+				$Splat.Add("CimSession", $CimSession)
+				break
+			}
+		}
+
+		Write-Output -InputObject (Get-CimInstance -ClassName Win32_ComputerSystem @Splat | Select-Object -ExpandProperty Domain)
+
+		if ($EndSession)
+		{
+			Remove-CimSession -CimSession $CimSession
+		}
+	}
+
+	End {
+
+	}
+}
+
+Function Get-WindowsActivationInformation {
+	<#
+		.SYNOPSIS
+			Gets information about the Windows Activation.
+
+		.DESCRIPTION
+			The cmdlet gets the Product Key, Product Id, the OEM Product Key stored in the BIOS, and OS version.
+
+		.EXAMPLE
+			Get-WindowsActivationInformation
+
+			Gets the activation information from the local computer.
 
 		.INPUTS
-            System.Management.Automation.PSCustomObject
+			None
 
-        .OUTPUTS
-            System.Collections.Hashtable
+		.OUTPUTS
+			System.Management.Automation.PSObject
 
-        .NOTES
-            AUTHOR: Michael Haken
-			LAST UPDATE: 8/21/2017	
+		.NOTES
+			AUTHOR: Michael Haken
+			LAST UPDATE: 11/14/2016
 	#>
 	[CmdletBinding()]
-	[OutputType([System.Collections.Hashtable])]
+	[OutputType([System.Management.Automation.PSObject])]
 	Param(
-		[Parameter(Mandatory = $true, ValueFromPipeline = $true)]
-		[PSCustomObject]$InputObject,
+	)
 
-		[Parameter()]
-		[System.String[]]$Exclude = @(),
+	Begin {
+		$RegPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion"
+		$Namespace = "root\cimv2"
+		$SWService = "SoftwareLicensingService"
+		$OEMProdKey = "OA3xOriginalProductKey"
+		$RegKey = "DigitalProductId"
+		$ByteArrayStart = 52
+		$ArrayLength = 15
+		$ProductKey = ""
 
-		[Parameter()]
-		[Switch]$NoEmpty
+		#These are the valid chars for a product key
+		$CharArray = @("B", "C", "D", "F", "G", "H", "J", "K", "M", 
+			"P", "Q", "R", "T", "V", "W", "X", "Y", "2", "3", "4", "6", "7", "8", "9")
+	}
+
+	Process {
+		$OS = Get-CimInstance -ClassName Win32_OperatingSystem | Select-Object -ExpandProperty Version
+		$Major = [System.Int32]::Parse($OS.Split(".")[0])
+
+		#Product Id is also part of they DigitalProductId byte array from position 8 to 30, it can be converted back using
+		#[System.Text.Encoding]::ASCII.GetString($Bytes) by converting the bytes to ASCII or Unicode
+		$ProductId = Get-ItemProperty -Path $RegPath -Name "ProductId" | Select-Object -ExpandProperty "ProductId"
+
+		#If the OS is Server 2008 or later, the registry key is DigitalProductId4
+		if ($Major -gt 5) {
+			$RegKey += "4"
+		}
+	
+		$Bytes = Get-ItemProperty -Path $RegPath -Name $RegKey | Select-Object -ExpandProperty $RegKey
+
+		for ($i = 24; $i -ge 0; $i--) 
+		{
+			$k = 0
+        
+			for ($j = $ByteArrayStart + $ArrayLength - 1; $j -ge $ByteArrayStart; $j--) 
+			{
+				$k = $k * 256 -bxor $Bytes[$j]
+				$Bytes[$j] = [math]::truncate($k / 24)
+				$k = $k % 24
+			}
+	
+			$ProductKey = $CharArray[$k] + $ProductKey
+
+			if (($i % 5 -eq 0) -and ($i -ne 0)) 
+			{
+				$ProductKey = "-" + $ProductKey
+			}
+		}
+
+		$BiosOEMKey = Get-CimInstance -Namespace $Namespace -ClassName $SWService | Select-Object -ExpandProperty $OEMProdKey
+
+		Write-Output -InputObject (New-Object -TypeName System.Management.Automation.PSObject -Property @{
+			"BIOSOEMKey" = $BiosOEMKey
+			"ProductKey" = $ProductKey
+			"ProductId" = $ProductId
+			"OSVersion" = $OS
+			"ComputerName" = $env:COMPUTERNAME
+		})
+	}
+
+	End {		
+	}
+}
+
+Function Get-PSExecutionPolicy {
+	<#
+		.SYNOPSIS
+			Gets the current PowerShell script execution policy for the computer.
+
+		.DESCRIPTION
+			Retrieves the execution policy from HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell.
+
+		.INPUTS
+			None
+
+		.OUTPUTS
+			System.String
+
+        .EXAMPLE
+			Get-PSExecutionPolicy
+
+			This might return "Unrestricted" or "Bypass".
+
+		.NOTES
+			AUTHOR: Michael Haken
+			LAST UPDATE: 8/24/2016
+	#>
+	[CmdletBinding()]
+	[OutputType([System.String])]
+	Param(
+	)
+
+	Begin {}
+
+	Process 
+	{       
+		$PSPolicy= Get-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell" -Name ExecutionPolicy -ErrorAction SilentlyContinue
+
+        if (![System.String]::IsNullOrEmpty($PSPolicy)) 
+		{
+            Write-Log -Message "PowerShell Execution Policy is set to $($PSPolicy.ExecutionPolicy) through GPO" -Level WARNING
+        }
+        else 
+		{
+            Write-Log -Message "PowerShell Execution Policy not configured through GPO" -Level VERBOSE
+        }
+
+		Write-Output -InputObject $PSPolicy
+	}
+
+	End {		
+	}
+}
+
+Function Get-LocalFQDNHostname {
+	<#
+		.SYNOPSIS
+			Gets the FQDN of the local host.
+
+		.DESCRIPTION
+			This cmdlet get the FQDN of the local host from DNS.
+
+		.INPUTS
+			None
+
+		.OUTPUTS
+			System.String
+
+        .EXAMPLE
+			Get-LocalFQDNHostname
+
+			Returns the local computer's FQDN.
+
+		.NOTES
+			AUTHOR: Michael Haken
+			LAST UPDATE: 8/24/2016
+	#>
+	[CmdletBinding()]
+	[OutputType([System.String])]
+	Param(
+	)
+
+	Begin {}
+
+	Process {
+		Write-Output -InputObject ([System.Net.Dns]::GetHostByName($env:COMPUTERNAME)).HostName
+	}
+
+	End {}
+}
+
+Function Get-NETVersion {
+	<#
+		.SYNOPSIS
+			Gets the current version of .NET version 4 installed.
+
+		.DESCRIPTION
+			This cmdlet gets the current version of .NET version 4 installed from the registry at HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full.
+
+		.INPUTS
+			None
+
+		.OUTPUTS
+			System.Int32
+
+        .EXAMPLE
+			Get-NETVersion
+
+			Retrieves the .NET version 4 specific version.
+
+		.NOTES
+			AUTHOR: Michael Haken
+			LAST UPDATE: 8/24/2016
+	#>
+    [CmdletBinding()]
+	[OutputType([System.Int32])]
+	Param(
+	)
+
+	Begin {}
+
+	Process {
+        $NetVersion = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full" -ErrorAction SilentlyContinue).Release
+        Write-Log -Message ".NET version installed is $NetVersion." -Level VERBOSE
+		Write-Output -InputObject ([System.Int32]$NetVersion)
+    }
+
+	End {		
+	}
+}
+
+#endregion
+
+
+#region Software
+
+Function Remove-JavaInstallations {
+	<#
+		.SYNOPSIS
+			Removes old versions of Java JRE or does a complete removal.
+
+		.DESCRIPTION
+			The function identifies well-known directories, registry keys, and registry key entries. Then based on the type of cleanup and architecture targetted, it removes those files, directories, registry keys, and registry key entries. During a cleanup, the current version of Java is specified so that it is not removed. 
+
+		.PARAMETER MajorVersion
+			The current major version of Java, for example 7 or 8.
+
+		.PARAMETER MinorVersion
+			The current minor version of Java, this is almost always 0.
+
+		.PARAMETER ReleaseVersion
+			The current release version of Java, this is the update number, for example 15, 45, or 73.
+
+		.PARAMETER PluginVersion
+			The major version of the Java web plugin, for example 10 or 11.
+	
+		.PARAMETER Architecture
+			The architecture to target, either x86, x64, or All. This defaults to All.
+
+		.PARAMETER FullRemoval
+			Specifies that a full removal of Java should be conducted.
+
+		.INPUTS
+			None
+
+		.OUTPUTS
+			None
+
+		.EXAMPLE
+			Remove-JavaInstallations -MajorVersion 8 -ReleaseVersion 15 -PluginVersion 11 -Architecture All
+
+			Removes all versions previous to JRE 8u15.
+
+		.EXAMPLE
+			Remove-JavaInstallations -MajorVersion 8 -ReleaseVersion 15 -PluginVersion 11 -Architecture x64
+
+			Removes all versions previous to JRE 8u15 that are x64 installations.
+
+		.EXAMPLE
+			Remove-JavaInstallations -FullRemoval
+
+			Removes all versions of JRE from the system.
+
+		.NOTES
+			AUTHOR: Michael Haken	
+			LAST UPDATE: 11/14/2016
+
+		.FUNCTIONALITY
+			The intended use of this cmdlet is to conduct complete removals of the Java JRE software.
+	#>
+
+	[CmdletBinding(DefaultParameterSetName = "Cleanup")]
+	[OutputType()]
+	Param(
+		[Parameter(Position = 0, ParameterSetName = "Cleanup", Mandatory = $true)]
+		[System.Int32]$MajorVersion,
+
+		[Parameter(ParameterSetName = "Cleanup")]
+		[System.Int32]$MinorVersion = 0,
+
+		[Parameter(Position = 1, ParameterSetName = "Cleanup", Mandatory = $true)]
+		[System.Int32]$ReleaseVersion,
+
+		[Parameter(Position = 2, ParameterSetName = "Cleanup", Mandatory=$true)]
+		[System.Int32]$PluginVersion,
+
+		[Parameter(ParameterSetname = "Cleanup")]
+		[ValidateSet("x86", "x64", "All")]
+		[System.String]$Architecture = "All",
+
+		[Parameter(ParameterSetName = "Removal", Mandatory = $true)]
+		[Switch]$FullRemoval	
+	)
+
+	Begin
+	{
+		if ((Get-PSDrive | Where-Object {$_.Root -eq "HKEY_CLASSES_ROOT"}))
+		{
+			Get-PSDrive | Where-Object {$_.Root -eq "HKEY_CLASSES_ROOT"} | Remove-PSDrive
+		}
+
+		New-PSDrive -Name HKCR -PSProvider Registry -Root HKEY_CLASSES_ROOT | Out-Null
+
+		#These keys are used to cleanup HKLM:\\SOFTWARE\MICROSOFT\WINDOWS\CURRENTVERSION\UNINSTALL
+		$64BIT_REGISTRY_KEY = "*26A24AE4-039D-4CA4-87B4-2F8641*FF*" # 26A24AE4-039D-4CA4-87B4-2F46417015FF - Java 7u15 x64 
+		$32BIT_REGISTRY_KEY = "*26A24AE4-039D-4CA4-87B4-2F8321*FF*"
+		$GENERIC_REGISTRY_KEY = "*26A24AE4-039D-4CA4-87B4-2F8*1*FF*"
+
+		#These keys are used to cleanup HKCR:\\Installer\Products
+		$64BIT_HKCR_INSTALLER_PRODUCTS_KEY = "*4EA42A62D9304AC4784BF23812*FF*" # 4EA42A62D9304AC4784BF238120683FF - Java 6u38 x86
+		$32BIT_HKCR_INSTALLER_PRODUCTS_KEY = "*4EA42A62D9304AC4784BF26814*FF*"
+		$GENERIC_HKCR_INSTALLER_PRODUCTS_KEY = "*4EA42A62D9304AC4784BF2*81*FF*"
+
+		#Java AutoUpdate
+		$HKCR_JAVA_AUTOUPDATER = "F60730A4A66673047777F5728467D401"
+		$HKLM_JAVA_AUTOUPDATER = "F60730A4A66673047777F5728467D401"
+
+		#Build the software version 
+		[string]$LONG_PUNCTUATED_VERSION = ""
+		[string]$NON_PUNCTUATED_VERSION = ""
+		[string]$SHORT_VERSION = "1." + $MajorVersion # 1.7
+		[string]$BASE_VERSION = "1." + $MajorVersion + "." + $MinorVersion + ".0" # 1.7.0
+		[string]$FULL_VERSION = ""
+		[string]$PLUGIN_VERSION = $PluginVersion.ToString()		
+	}
+
+	Process
+	{
+		$Temp = $ReleaseVersion.ToString().ToCharArray()
+		[System.Array]::Reverse($Temp)
+		[string]$REVERSE_RELEASE = $Temp.ToString()
+
+		$Temp = ($MajorVersion.ToString() + $MinorVersion.ToString()).ToCharArray()
+		[System.Array]::Reverse($Temp)
+		[string]$REVERSE_VERSION = $Temp.ToString()
+
+		#Make the current release string two characters long
+		if ($ReleaseVersion.ToString().Length -eq 1) 
+		{
+			$ReleaseVersion = "0" + $ReleaseVersion.ToString()
+		}
+
+		switch ($ReleaseVersion) 
+		{
+			"00" {
+				$FULL_VERSION = "1." + $MajorVersion + (& if($MinorVersion -gt 0) {"." + $MinorVersion } else {""}) # 1.7 or 1.7.1
+				$NON_PUNCTUATED_VERSION = "1" + $MajorVersion + $MinorVersion # 170
+				$LONG_PUNCTUATED_VERSION = "1." + $MajorVersion + "." + $MinorVersion # 1.7.0
+				break
+			}
+			default {
+				$FULL_VERSION = "1." + $MajorVersion + "." + $MinorVersion + "_" + $ReleaseVersion # 1.7.0_15
+				$NON_PUNCTUATED_VERSION = "1" + $MajorVersion + $MinorVersion + "_" + $ReleaseVersion # 170_15
+				$LONG_PUNCTUATED_VERSION = $FULL_VERSION # 1.7.0_15
+				break
+			}
+		}
+
+		$REVERSE_VERSION_REGISTRY_KEY = $REVERSE_VERSION + $REVERSE_RELEASE + "FF*"
+		$NON_PUNCTUATED_REGISTRY_KEY = $MajorVersion.ToString() + $MinorVersion.ToString() + $ReleaseVersion.ToString() + "FF*"
+		
+		#Create the registry strings to match Java in HKCR and HKLM
+		$UNINSTALL_REGISTRY_KEY = ""
+		$HKCR_REGISTRY_KEY = ""
+
+		switch ($Architecture)
+		{
+			# HKLM:\SOFTWARE\Wow6432Node\
+			"x86" {
+				$UNINSTALL_REGISTRY_KEY = "*26A24AE4-039D-4CA4-87B4-2F8321" + $NON_PUNCTUATED_REGISTRY_KEY # 3217000 or 3217015
+				$HKCR_REGISTRY_KEY = "*4EA42A62D9304AC4784BF23812" + $REVERSE_VERSION_REGISTRY_KEY + "*" #38120751
+				break
+			}
+			# HKLM:\SOFTWARE\
+			"x64" {
+				$UNINSTALL_REGISTRY_KEY = "*26A24AE4-039D-4CA4-87B4-2F8641" + $NON_PUNCTUATED_REGISTRY_KEY # 6417000 or 6417015
+				$HKCR_REGISTRY_KEY = "*4EA42A62D9304AC4784BF26814" + $REVERSE_VERSION_REGISTRY_KEY +"*" #68140751
+				break
+			}
+			"All" {
+				$UNINSTALL_REGISTRY_KEY = "*26A24AE4-039D-4CA4-87B4-2F8*1" + $NON_PUNCTUATED_REGISTRY_KEY # *17000 or *17015
+				$HKCR_REGISTRY_KEY = "*4EA42A62D9304AC4784BF2*81*" + $REVERSE_VERSION_REGISTRY_KEY + "*" #*81*0751
+				break
+			}
+		}
+
+		$FilePaths = @()
+		$UserProfiles = Get-ChildItem -Path "$env:SystemDrive\Users"
+
+		Write-Log -Message "[INFO] Getting All User Profiles" -Level VERBOSE
+
+		foreach ($Profile in $UserProfiles)
+		{
+			$FilePaths += "$env:SystemDrive\Users\" + $Profile.Name + "\AppData\LocalLow\Sun"
+			$FilePaths += "$env:SystemDrive\Users\" + $Profile.Name + "\AppData\Local\Temp\java_install_reg.log"
+			$FilePaths += "$env:SystemDrive\Users\" + $Profile.Name + "\AppData\Local\Temp\java_install.log"  
+		}
+
+		Write-Log -Message "[INFO] Adding file paths" -Level VERBOSE
+
+		$FilePaths += "$env:SYSTEMROOT\Temp\java_install.log"
+		$FilePaths += "$env:SYSTEMROOT\Temp\java_install_reg.log"
+
+		if ($PSCmdlet.ParameterSetName -eq "Removal")
+		{
+			$FilePaths += "$env:ALLUSERSPROFILE\Sun"
+
+			if ($Architecture -eq "x86" -or $Architecture -eq "All")
+			{
+				$FilePaths += "$env:SystemDrive\Program Files (x86)\Java"
+				$FilePaths += "$env:SYSTEMROOT\System32\java.exe"
+				$FilePaths += "$env:SYSTEMROOT\System32\javaw.exe"
+				$FilePaths += "$env:SYSTEMROOT\System32\javaws.exe"
+			}
+			if ($Architecture -eq "x64" -or $Architecture -eq "All")
+			{
+				$FilePaths += "$env:SystemDrive\Program Files\Java"
+				$FilePaths += "$env:SYSTEMROOT\SysWow64\java.exe"
+				$FilePaths += "$env:SYSTEMROOT\SysWow64\javaw.exe"
+				$FilePaths += "$env:SYSTEMROOT\SysWow64\javaws.exe"
+			}
+		}
+
+		if ($PSCmdlet.ParameterSetName -eq "Cleanup")
+		{
+			if ($Architecture -eq "x86" -or $Architecture -eq "All")
+			{
+				$FilePaths += @(Get-ChildItem "$env:SystemDrive\program files (x86)\Java" | Where-Object {$_.name -notlike "jre" + $MajorVersion})
+			}
+			if ($Architecture -eq "x64" -or $Architecture -eq "All")
+			{
+				$FilePaths += @(Get-ChildItem "$env:SystemDrive\program files\Java" | Where-Object {$_.name -notlike "jre" + $MajorVersion})
+			}
+		}
+		
+		Write-Log -Message "[INFO] Getting Registry Keys" -Level VERBOSE
+        $ErrorActionPreference = "SilentlyContinue"
+		$RegistryKeys = @()
+
+		$RegistryKeys += 'HKCU:\Software\AppDataLow\Software\Javasoft'
+		$RegistryKeys += 'HKCU:\Software\Javasoft\Java Update'
+		$RegistryKeys += 'HKCU:\Software\Microsoft\Protected Storage System Provider\S-1-5-21-1292428093-1275210071-839522115-1003\Data'
+		$RegistryKeys += 'HKLM:\SOFTWARE\MozillaPlugins\@java.com'
+		$RegistryKeys += 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UserData\S-1-5-18\Components\0357E4991DA5FF14F9615B3312070F06'
+		$RegistryKeys += 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UserData\S-1-5-18\Components\0357E4991DA5FF14F9615B3512070F06'
+		$RegistryKeys += 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UserData\S-1-5-18\Products\4EA42A62D9304AC4784BF238120652FF'
+		$RegistryKeys += 'HKLM:\SOFTWARE\Classes\JavaSoft.JavaBeansBridge'
+		$RegistryKeys += 'HKLM:\SOFTWARE\Classes\JavaSoft.JavaBeansBridge.1'
+		$RegistryKeys += 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Installer\UserData\S-1-5-18\Components\0357E4991DA5FF14F9615B3312070F07'
+		$RegistryKeys += 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Installer\UserData\S-1-5-18\Components\0357E4991DA5FF14F9615B3312070F08'
+		$RegistryKeys += 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Installer\UserData\S-1-5-18\Components\0357E4991DA5FF14F9615B3312070F09'
+		$RegistryKeys += 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UserData\S-1-5-18\Products\4EA42A62D9304AC4784BF2381206220F'
+
+		if ($PSCmdlet.ParameterSetName -eq "Cleanup")
+		{
+			$RegistryKeys += @((Get-ChildItem -Path "HKCR:\" | Where-Object {($_.Name -like "*JavaPlugin*") -and ($_.Name -notlike "*JavaPlugin." + $NON_PUNCTUATED_VERSION + "*")}).PSPath)
+			$RegistryKeys += @((Get-ChildItem -Path "HKCR:\" | Where-Object {($_.name -like "*JavaWebStart.isInstalled.*") -and ($_.Name -notlike "*JavaWebStart.isInstalled." + $BASE_VERSION +"*")}).PSPath)
+			$RegistryKeys += @((Get-ChildItem -Path "HKCR:\Installer\Products" | Where-Object {($_.Name -like $GENERIC_HKCR_INSTALLER_PRODUCTS_KEY) -and ($_.Name -notlike $HKCR_REGISTRY_KEY)}).PSPath)
+			$RegistryKeys += @((Get-ChildItem -Path "HKCU:\Software\JavaSoft\Java Runtime Environment" | Where-Object {($_.Name -notlike "*" + $FULL_VERSION +"*") -and ($_.name -notlike "*" + $LONG_PUNCTUATED_VERSION +"*")}).PSPath)
+			$RegistryKeys += @((Get-ChildItem -Path "HKCU:\Software\JavaSoft\Java2D" | Where-Object {($_.Name -notlike  "*" + $LONG_PUNCTUATED_VERSION + "*")}).PSPath) 
+			$RegistryKeys += @((Get-ChildItem -Path "HKCU:\Software\Classes" | Where-Object {($_.Name -like "*JavaPlugin*") -and ($_.Name -notlike "*JavaPlugin." + $NON_PUNCTUATED_VERSION + "*")}).PSPath)
+			$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\Classes\Installer\Products" | Where-Object {($_.Name -like $GENERIC_HKCR_INSTALLER_PRODUCTS_KEY) -and  ($_.Name -notlike $HKCR_REGISTRY_KEY) }).PSPath)
+
+			if ($Architecture -eq "x86" -or $Architecture -eq "All")
+			{
+				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\Classes\Installer\Features\" | Where-Object {$_.Name -like $32BIT_REGISTRY_KEY}).PSPath)
+				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\wow6432node\Microsoft\Windows\CurrentVersion\Uninstall\" | Where-Object {($_.Name -like $32BIT_REGISTRY_KEY) -and ($_.Name -notlike $UNINSTALL_REGISTRY_KEY)}).PSPath)
+				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\Classes" | Where-Object {($_.Name -notlike "*JavaPlugin." + $NON_PUNCTUATED_VERSION + "*") -and ($_.Name -like "*JavaPlugin*")}).PSPath) 
+				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\Classes" | Where-Object {($_.Name -notlike "*JavaWebStart.isInstalled." + $BASE_VERSION + "*") -and ($_.Name -like "*JavaWebStart.isInstalled.*")}).PSPath) 
+				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\Wow6432Node\JavaSoft\Java Runtime Environemt" | Where-Object {($_.Name -notlike  "*" + $FULL_VERSION + "*") -and ($_.Name -notlike  "*" + $SHORT_VERSION + "*")}).PSPath)
+				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\Wow6432Node\JavaSoft\Java Plug-in" | Where-Object {($_.Name -notlike  "*" + $PLUGIN_VERSION + "*")}).PSPath)
+				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\Wow6432Node\JavaSoft\Java Web Start" | Where-Object {($_.Name -notlike "*" + $FULL_VERSION +"*") -and ($_.name -notlike "*" + $SHORT_VERSION +"*")}).PSPath)			
+			}
+
+			if ($Architecture -eq "x64" -or $Architecture -eq "All")
+			{
+				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\Classes\Installer\Features\" | Where-Object {$_.Name -like $64BIT_REGISTRY_KEY}).PSPath)
+				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\" | Where-Object {($_.Name -like $64BIT_REGISTRY_KEY) -and ($_.Name -notlike $UNINSTALL_REGISTRY_KEY)}).PSPath) 
+				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\Classes" | Where-Object {($_.Name -notlike "*JavaWebStart.isInstalled." + $BASE_VERSION + "*") -and ($_.Name -like "*JavaWebStart.isInstalled.*")}).PSPath)
+				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\Classes" | Where-Object {($_.Name -notlike "*JavaPlugin." + $NON_PUNCTUATED_VERSION + "*") -and ($_.Name -like "*JavaPlugin*")}).PSPath)
+				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\JavaSoft\Java Runtime Environemt" | Where-Object {($_.Name -notlike  "*" + $FULL_VERSION + "*") -and ($_.Name -notlike  "*" + $SHORT_VERSION + "*")}).PSPath)
+				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\JavaSoft\Java Plug-in" | Where-Object {($_.Name -notlike  "*" + $PLUGIN_VERSION + "*")}).PSPath)
+				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\JavaSoft\Java Web Start" | Where-Object {($_.Name -notlike "*" + $FULL_VERSION +"*") -and ($_.name -notlike "*" + $SHORT_VERSION +"*")}).PSPath)	
+			}
+		}
+
+		if ($PSCmdlet.ParameterSetName -eq "Removal")
+		{			
+			$RegistryKeys += "HKLM:\SOFTWARE\Classes\jarfile"
+			$RegistryKeys += @((Get-ChildItem -Path "HKCR:\" | Where-Object {($_.Name -like "*JavaPlugin*")}).PSPath)
+			$RegistryKeys += @((Get-ChildItem -Path "HKCR:\" | Where-Object {($_.Name -like "*JavaScript*")}).PSPath)
+			$RegistryKeys += @((Get-ChildItem -Path "HKCR:\" | Where-Object {($_.Name -like "*JavaWebStart*")}).PSPath)
+			$RegistryKeys += @((Get-ChildItem -Path "HKCR:\Installer\Products" | Where-Object {($_.Name -like $GENERIC_HKCR_INSTALLER_PRODUCTS_KEY)}).PSPath)
+			$RegistryKeys += "HKCU:\Software\JavaSoft\Java Runtime Environment"
+			$RegistryKeys += "HKCU:\Software\JavaSoft\Java2D"
+			$RegistryKeys += "HKCR:\Installer\Products\$HKCR_JAVA_AUTOUPDATER"
+
+			if ($Architecture -eq "x86" -or $Architecture -eq "All")
+			{
+				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\Classes\Installer\Features\" | Where-Object {$_.Name -like $32BIT_REGISTRY_KEY -or $_.Name -like $HKLM_JAVA_AUTOUPDATER}).PSPath)
+				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\wow6432node\Microsoft\Windows\CurrentVersion\Uninstall\" | Where-Object {$_.Name -like $32BIT_REGISTRY_KEY}).PSPath) 
+				$RegistryKeys += "HKLM:\SOFTWARE\Wow6432Node\JavaSoft"
+				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\Classes" | Where-Object {$_.Name -like "*JavaWebStart*"}).PSPath)
+				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\Classes" | Where-Object {$_.Name -like "*JavaPlugin*"}).PSPath)
+				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\Classes\Installer\Products" | Where-Object {$_.Name -like $32BIT_HKCR_INSTALLER_PRODUCTS_KEY}).PSPath)
+				$RegistryKeys += "HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\App Paths\javaws.exe"
+			}
+
+			if ($Architecture -eq "x64" -or $Architecture -eq "All")
+			{
+				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\Classes\Installer\Features\" | Where-Object {$_.Name -like $64BIT_REGISTRY_KEY -or $_.Name -like $HKLM_JAVA_AUTOUPDATER}).PSPath)
+				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\" | Where-Object {$_.Name -like $64BIT_REGISTRY_KEY -or $_.Name -like $HKLM_JAVA_AUTOUPDATER}).PSPath) 
+				$RegistryKeys += "HKLM:\SOFTWARE\JavaSoft"
+				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\Classes" | Where-Object {$_.Name -like "*JavaWebStart*"}).PSPath)
+				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\Software\Classes" | Where-Object {$_.Name -like "*JavaPlugin*"}).PSPath)
+				$RegistryKeys += @((Get-ChildItem -Path "HKLM:\SOFTWARE\Classes\Installer\Products" | Where-Object {$_.Name -like $64BIT_HKCR_INSTALLER_PRODUCTS_KEY}).PSPath)
+				$RegistryKeys += "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\javaws.exe"
+			}
+		}
+
+		Write-Log -Message "[INFO] Getting Registry Key Properties" -Level VERBOSE
+
+		$RegistryKeyProperties = @()
+
+		$RegistryKeyProperties += @(Get-RegistryKeyEntries -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\Folders") 
+		$RegistryKeyProperties += @(Get-RegistryKeyEntries -Path "HKLM:\System\ControlSet001\Control\Session Manager\Environment")
+		$RegistryKeyProperties += @(Get-RegistryKeyEntries -Path "HKLM:\System\ControlSet002\Control\Session Manager\Environment")
+		$RegistryKeyProperties += @(Get-RegistryKeyEntries -Path "HKLM:\System\ControlSet003\Control\Session Manager\Environment")
+		$RegistryKeyProperties += @(Get-RegistryKeyEntries -Path "HKLM:\System\CurrentControlSet\Control\Session Manager\Environment")
+		$RegistryKeyProperties += @(Get-RegistryKeyEntries -Path "HKLM:\SOFTWARE\Classes\jarfile\shell\open\command")
+
+		$EntriesToKeep = @()
+
+		if ($PSCmdlet.ParameterSetName -eq "Cleanup")
+		{
+			switch ($Architecture)
+			{
+				"x86" {
+					$RegistryKeyProperties += @(Get-RegistryKeyEntries -Path "HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\App Paths\javaws.exe")
+					$NOT_LIKE_1 = "$env:SystemDrive\program files (x86)\*\jre" + $majorbuild + "\*"
+					$NOT_LIKE_2 = "$env:SystemDrive\program files (x86)\*\jre" + $shortversion + "\*"
+					$LIKE = "$env:SystemDrive\program files (x86)\*\jre*"
+					break
+				}
+				"x64" {
+					$RegistryKeyProperties += @(Get-RegistryKeyEntries -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\javaws.exe")
+					$NOT_LIKE_1 = "$env:SystemDrive\program files\*\jre" + $majorbuild + "\*"
+					$NOT_LIKE_2 = "$env:SystemDrive\program files\*\jre" + $shortversion + "\*"
+					$LIKE = "$env:SystemDrive\program files\*\jre*"
+					break
+				}
+				"All" {
+					$RegistryKeyProperties += @(Get-RegistryKeyEntries -Path "HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\App Paths\javaws.exe")
+					$RegistryKeyProperties += @(Get-RegistryKeyEntries -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\javaws.exe")
+					$NOT_LIKE_1 = "$env:SystemDrive\program files*\*\jre" + $majorbuild + "\*"
+					$NOT_LIKE_2 = "$env:SystemDrive\program files*\*\jre" + $shortversion + "\*"
+					$LIKE = "$env:SystemDrive\program files*\*\jre*"
+					break
+				}
+			}
+
+			foreach ($Property in $RegistryKeyProperties)
+			{
+				if ((($Property.Property -like $LIKE) -and ($Property.Property -notlike $NOT_LIKE_1) -and ($Property.Property -notlike $NOT_LIKE_2)) -or
+					(($Property.Value -like $LIKE) -and ($Property.Value -notlike $NOT_LIKE_1) -and ($Property.Value -notlike $NOT_LIKE_2)))
+				{
+					$EntriesToKeep += $Property
+				}
+			}
+		}
+
+		if ($PSCmdlet.ParameterSetName -eq "Removal")
+		{
+			switch ($Architecture)
+			{
+				"x86" {
+					$RegistryKeyProperties += @(Get-RegistryKeyEntries -Path "HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\App Paths\javaws.exe")
+					$LIKE = "$env:SystemDrive\program files (x86)\*\jre*"
+					break
+				}
+				"x64" {
+					$RegistryKeyProperties += @(Get-RegistryKeyEntries -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\javaws.exe")
+					$LIKE = "$env:SystemDrive\program files\*\jre*"
+					break
+				}
+				"All" {
+					$RegistryKeyProperties += @(Get-RegistryKeyEntries -Path "HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\App Paths\javaws.exe")
+					$RegistryKeyProperties += @(Get-RegistryKeyEntries -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\javaws.exe")
+					$LIKE = "$env:SystemDrive\program files*\*\jre*"
+					break
+				}
+			}
+
+			foreach ($Property in $RegistryKeyProperties)
+			{
+				if (($Property.Property -like $LIKE) -or ($Property.Value -like $LIKE))
+				{
+					$EntriesToKepp += $Property
+				}
+			}
+		}
+
+		$RegistryKeyProperties = $EntriesToKeep
+
+        $ErrorActionPreference = "Continue"
+
+		[int]$DirectoryCount = 0
+		[int]$RegistryKeyCount = 0
+		[int]$RegistryEntryCount = 0
+
+		Write-Log -Message "Removing Directories and Files" -Level VERBOSE
+
+		foreach ($Item in $FilePaths)
+		{
+			if (Test-Path -Path $Item)
+			{
+				$DirectoryCount++
+				Remove-Item -Path $Item -Force -Recurse
+			}
+		}
+
+		Write-Log -Message "Removing Registry Keys" -Level VERBOSE
+
+		foreach ($Item in $RegistryKeys)
+		{
+			if (Test-Path -Path $Item)
+			{
+				$RegistryKeyCount++
+				Remove-Item -Path $Item -Force -Recurse
+			}
+		}
+
+		Write-Log -Message "Removing Registry Key Entries" -Level VERBOSE
+
+		foreach ($Item in $RegistryKeyProperties)
+		{
+			if (Test-Path -Path $Item.Path)
+			{
+				$RegistryEntryCount++
+				Remove-ItemProperty -Path $Item.Path -Name $Item.Property -Force
+			}
+		}
+
+		Write-Log -Message "Java cleanup removed $DirectoryCount directories, $RegistryKeyCount registry keys, and $RegistryEntryCount registry key entries." -Level INFO
+	}
+
+	End {		
+	}
+}
+
+Function Test-PackageInstallation {
+	<#
+		.SYNOPSIS
+			Tests for the installation of the specified software or update.
+
+		.DESCRIPTION
+			This cmdlet evaluates Win32_QuickFixEngineering, HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall, HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall, and
+			HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UserData\S-1-5-18\Products for a matching product.
+
+		.PARAMETER PackageId
+			The Id of the installed package, software, or update.
+
+		.INPUTS
+			System.String
+
+		.OUTPUTS
+			System.Boolean
+
+        .EXAMPLE
+			Test-PackageInstallation -PackageId KB2803757
+
+			Tests for the installation of KB2803757.
+
+		.NOTES
+			AUTHOR: Michael Haken
+			LAST UPDATE: 8/24/2016
+	#>
+	[CmdletBinding()]
+	[OutputType([System.Boolean])]
+	Param(
+		[Parameter(Mandatory = $true, ValueFromPipeline = $true, Position = 0)]
+		[ValidateNotNullOrEmpty()]
+		[System.String]$PackageId
 	)
 
 	Begin {
 	}
-	
-	Process {
-		[System.Collections.Hashtable]$Result = @{}
 
-		$InputObject | Get-Member -MemberType "*Property" | Select-Object -ExpandProperty Name | ForEach-Object {
-			if ($Exclude -inotcontains $_) {
-				if ($NoEmpty -and -not ($InputObject.$_ -eq $null -or $InputObject.$_ -eq ""))
-				{
-					Write-Verbose -Message "Property $_ has an empty/null value."
-				}
-				else 
-				{
-					$Result.Add($_, $InputObject.$_)
-				}
-			}
-			else {
-				Write-Verbose -Message "Property $_ excluded."
-			}
+	Process {
+        $PresenceKey = $null
+        $PresenceKey = Get-CimInstance -Class Win32_quickfixengineering -ErrorAction SilentlyContinue | Where-Object { $_.HotFixID -eq $PackageId } | Select-Object -ExpandProperty HotFixID
+        
+		if ([System.String]::IsNullOrEmpty($PresenceKey)) {
+			$Result = Test-Path -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\$PackageId"
+            
+			if ($Result -eq $false) {
+				# Alternative (seen KB2803754, 2802063 register here)
+                $Result = Test-Path -Path "HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\$PackageId"
+                
+                if ($Result -eq $false) {
+                    # Alternative (Office2010FilterPack SP1)
+					$Result = Test-Path -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\UserData\S-1-5-18\Products\$PackageId"
+                }
+            }
+        }
+		else {
+			$Result = $true
 		}
 
 		Write-Output -InputObject $Result
 	}
 
-	End {
+	End {		
 	}
 }
+
+Function Get-WebPackage {
+	<#
+		.SYNOPSIS
+			Retrieves a specified package from the internet.
+
+		.DESCRIPTION
+			This cmdlet tests for the presence of the desired package name, and if it is not present at the provided destination folder, downloads it from the given Url.
+
+			Hotfixes that download with a _zip in the filename, but have a .exe extension, will be automatically expanded to a true zip file.
+
+		.PARAMETER PackageName
+			The name of the package.
+
+		.PARAMETER Destination
+			The path where the package should be downloaded to, this should be the resulting file name of the downloaded item.
+
+		.PARAMETER Url
+			The source to download the package from.
+
+		.INPUTS
+			None
+
+		.OUTPUTS
+			System.String[]
+
+        .EXAMPLE
+			Get-WebPackage -PackageName "Test App" -Url "http://contoso.com/testapp.zip" -Destination "c:\testapp.zip"
+
+			Gets the zip file from the Url and returns the list of its contents.
+
+		.NOTES
+			AUTHOR: Michael Haken
+			LAST UPDATE: 8/24/2016
+	#>
+	[CmdletBinding()]
+	[OutputType([System.String[]])]
+	Param(
+		[Parameter()]
+		[ValidateNotNullOrEmpty()]
+		[System.String]$PackageName,
+
+		[Parameter(Mandatory = $true, Position = 0)]
+		[ValidateNotNullOrEmpty()]
+		[System.String]$Url,
+
+		[Parameter(Mandatory = $true, Position = 1)]
+		[ValidateNotNullOrEmpty()]
+		[System.String]$Destination
+	)
+
+	Begin {		
+	}
+
+	Process {
+		$Result = @()
+
+		if (![System.String]::IsNullOrEmpty($PackageName)) 
+		{
+			Write-Log -Message "Processing package $PackageName." -Level VERBOSE
+		}
+
+		if (!(Test-Path -Path $Destination)) 
+		{
+			Write-Log -Message "$Destination not present, downloading from $Url." -Level VERBOSE
+
+			try {
+				$WebClient = New-Object -TypeName System.Net.WebClient
+				$WebClient.DownloadFile($Url, $Destination)
+
+				$FileInfo = New-Object -TypeName System.IO.FileInfo($Destination)
+
+				if ($FileInfo.Name.Contains("_zip")) 
+				{
+					try {
+						Write-Log -Message "Expanding Hotfix $($FileInfo.Name)." -Level VERBOSE
+
+						if (!$Destination.EndsWith(".zip")) 
+						{
+							$Destination = Rename-Item -Path $Destination -NewName "$Destination.zip" -PassThru | Select-Object -ExpandProperty FullName
+						}
+
+						[System.IO.Compression.ZipArchive]$Zip = [System.IO.Compression.ZipFile]::OpenRead($Path)
+						$Contents = $Zip.Entries | Select-Object -Property @{Name = "Path"; Expression = {"$($FileInfo.DirectoryName)\$($_.FullName)"}} | Select-Object -ExpandProperty Path
+						$Zip.Dispose()
+						[System.IO.Compression.ZipFile]::ExtractToDirectory($Path, $FileInfo.DirectoryName)
+
+						Write-Log -Message "Successfully expanded files $($Contents -join `",`")" -Level VERBOSE
+
+						$Result = $Contents
+					}
+					catch [Exception] {
+						Write-Log -Message "Error expanding zip file $Destination." -Level WARNING -ErrorRecord $_
+					}
+				}
+				else {
+					$Result = @($Destination)
+				}
+			}
+			catch [Exception] {
+				Write-Log -Message "Problem downloading file from $Url." -Level WARNING -ErrorRecord $_
+			}
+		}
+		else 
+		{
+			Write-Log -Message "$Destination is present, no need to download." -Level VERBOSE
+			$Result = @($Destination)
+		}
+
+		Write-Output -InputObject $Result
+	}
+
+	End {		
+	}
+}
+
+Function Start-PackageInstallation {
+	<#
+		.SYNOPSIS
+			Installs the specified package.
+
+		.DESCRIPTION
+			This cmdlet launches the installation of a specified package.
+
+		.PARAMETER PackageId
+			The PackageId of the package to test if the package is already installed.
+
+		.PARAMETER PackageName
+			The name of the package to install, can be any text you want to identify the package in the logs.
+
+		.PARAMETER Destination
+			The location to download the installation files to.
+
+		.PARAMETER Url
+			The source path to download the installation files from.
+
+		.PARAMETER Arguments
+			The arguments to be used with the installation file.
+
+		.INPUTS
+			None
+
+		.OUTPUTS
+			None
+
+        .EXAMPLE
+			Start-PackageInstallation -PackageId "KB123456" -PackageName "Another update" -Destination "c:\kb123456.msu" -Url "http://contoso.com/kb123456.msu" -ArgumentList @("\qn")
+
+			Installs the specified KB.
+
+		.NOTES
+			AUTHOR: Michael Haken
+			LAST UPDATE: 8/24/2016
+	#>
+	[CmdletBinding()]
+	[OutputType()]
+	Param(
+		[Parameter(Mandatory = $true)]
+		[ValidateNotNullOrEmpty()]
+		[System.String]$PackageId,
+
+		[Parameter(Mandatory  =$true)]
+		[ValidateNotNullOrEmpty()]
+		[System.String]$PackageName,
+
+		[Parameter(Mandatory = $true)]
+		[ValidateNotNullOrEmpty()]
+		[System.String]$Destination,
+
+		[Parameter(Mandatory = $true)]
+		[ValidateNotNullOrEmpty()]
+		[System.String]$Url,
+
+		[Parameter()]
+		[ValidateNotNull()]
+		[System.String[]]$Arguments = @()
+	)
+
+	Begin {}
+
+	Process {
+        Write-Log -Message "Processing $PackageName ($PackageId)" -Level VERBOSE
+
+        if (!(Test-PackageInstallation -PackageId $PackageId)) {
+
+			Write-Log -Message "Package not detected, installing."
+
+			$Contents = @()
+
+            if (!(Test-Path -Path $Destination)) {
+				# Download & Extract
+				$Contents = Get-WebPackage -Package $PackageName -Url $Url -Destination $Destination
+
+                if ($Contents.Count -eq 0) {
+					Write-Log -Message "Problem downloading/accessing $PackageName" -Level ERROR
+					throw "Problem downloading/accessing $PackageName"
+                }
+            }
+			else {
+				$Contents += $Destination
+			}
+               
+			Write-Log -Message "Installing $PackageName"
+
+			foreach ($Item in $Contents) {
+				$Lower = $Item.ToLower()
+				if ($Lower.EndsWith(".exe") -or $Lower.EndsWith(".msi") -or $Lower.EndsWith(".msu") -or $Lower.EndsWith(".msp")) {
+					Start-ProcessWait -FilePath $Item -ArgumentList $Arguments -EnableLogging
+				}
+			}
+
+			if (!(Test-PackageInstallation -PackageId $PackageId)) {
+                Write-Log -Message "Problem installing $PackageName after the install steps were run, did not find the package Id $PackageId." -Level ERROR
+				throw "Problem installing $PackageName after the install steps were run, did not find the package Id $PackageId."
+            }
+			else {
+				Write-Log -Message "$PackageName successfully installed."
+			}
+        }
+        else {
+            Write-Log -Message "$PackageName already installed" -Level VERBOSE
+        }  
+	}
+	
+	End {
+	}  
+}
+
+#endregion
+
+
+#region Dynamic Parameters
 
 Function Get-PropertyValue {
 	<#
@@ -7618,7 +8426,7 @@ Function Get-PropertyValue {
 				Write-Output -InputObject $PropertyInfo.GetValue($InputObject, $null)
             }
             catch [Exception] {
-				Write-Verbose -Message $_.Exception.Message
+				Write-Log -ErrorRecord $_ -Level VERBOSEERROR
                 Write-Output -InputObject $null
             }
         }
@@ -7633,7 +8441,7 @@ Function Get-PropertyValue {
                     Write-Output -InputObject $FieldInfo.GetValue($InputObject, $null)
                 }
                 catch [Exception] {
-					Write-Verbose -Message $_.Exception.Message
+					Write-Log -ErrorRecord $_ -Level VERBOSEERROR
                     Write-Output -InputObject $null
                 }
             }
@@ -7825,6 +8633,7 @@ Function Import-UnboundParameterCode {
 			
 	#>
 	[CmdletBinding()]
+	[OutputType([System.Type])]
 	Param(
 		[Parameter()]
 		[Switch]$PassThru
@@ -7834,16 +8643,16 @@ Function Import-UnboundParameterCode {
 	}
 
 	Process {
-		if (-not ([System.Management.Automation.PSTypeName]"BAMCIS.ExtensionMethods").Type) {
+		if (-not ([System.Management.Automation.PSTypeName]"BAMCIS.PowerShell.ExtensionMethods").Type) {
             Add-Type -TypeDefinition $script:UnboundExtensionMethod
-			Write-Verbose -Message "Type successfully added."
+			Write-Log -Message "Type BAMCIS.PowerShell.ExtensionMethods successfully added." -Level VERBOSE
         }
 		else {
-			Write-Verbose -Message "Type already added."
+			Write-Log -Message "Type BAMCIS.PowerShell.ExtensionMethods already added." -Level VERBOSE
 		}
 
 		if ($PassThru) {
-			Write-Output -InputObject ([BAMCIS.ExtensionMethods])
+			Write-Output -InputObject ([BAMCIS.PowerShell.ExtensionMethods])
 		}
 	}
 
@@ -7899,10 +8708,13 @@ Function New-DynamicParameter {
 			Validates that the argument of an optional parameter is not null, an empty string, or an empty collection.
 
 		.PARAMETER AllowEmptyString
+			Allows Empty strings.
 
 		.PARAMETER AllowNull
+			Allows null values.
 
 		.PARAMETER AllowEmptyCollection
+			Allows empty collections.
 
 		.PARAMETER ValidateScript
 			Defines an attribute that uses a script to validate a parameter of any Windows PowerShell function.
@@ -7978,6 +8790,7 @@ Function New-DynamicParameter {
 			LAST UPDATE: 8/23/2017	
 	#>
 	[CmdletBinding()]
+	[OutputType([System.Management.Automation.RuntimeDefinedParameterDictionary])]
 	Param(
 		[Parameter(Mandatory = $true, ValueFromPipelineByPropertyName = $true)]
 		[ValidateNotNullOrEmpty()]
@@ -8219,555 +9032,8 @@ Function New-DynamicParameter {
 	}
 }
 
-Function Set-NetAdapterDnsSuffix {
-	<#
-		.SYNOPSIS
-			Sets the DNS suffix search order for TCP/IP.
+#endregion
 
-		.DESCRIPTION
-			This cmdlet allows you to specify either a list of DNS suffixes, a single DNS suffix that should be at the top of the ordering and optionally replace
-			all other entries, or revert to using the primary and connection specific suffixes with optional domain name devolution (the "append parent suffixes of the primary dns suffix" option).
-
-		.PARAMETER Domains
-			The domains to set as the DNS suffix search list.
-
-		.PARAMETER DefaultDomain
-			The domain that should appear at the top of the search list. If it does not currently exist in the list it will be added, otherwise it will be moved to the top.
-
-		.PARAMETER Replace
-			Indicates whether the default domain should replace all of the current entries in the list. This is equivalent to specifying the parameter -Domains @("my.newdomain.com").
-		
-		.PARAMETER AppendPrimaryAndConnectionSpecificSuffixes
-			This parameter removes all entries from the Search List and uses provided primary and connection specific DNS suffixes when resolving unqualified domain names.
-
-		.PARAMETER UseDomainNameDevolution
-			This parameter indiciates that domain name devolution will be used. The resolver performs name devolution on the primary DNS suffix. 
-			It strips off the leftmost label and tries the resulting domain name until only two labels remain. For example, if your primary DNS suffix 
-			is mfg.fareast.isp01-ext.com, and then queried for the unqualified, single-label name "coffee," the resolver queries in order the following FQDNs:
-			
-				coffee.fareast.isp01-ext.com.
-				coffee.isp01-ext.com.
-
-		.PARAMETER ReturnStringErrorMessage
-			If this is specified, instead of an integer return value, the string representation of the error code is returned.
-
-		.EXAMPLE
-			$Result = Set-NetAdapterDnsSuffix -Domains @("contoso.com", "tailspintoys.com")
-
-			This sets the DNS suffix search list to the domains provided. The Result indicates the success or failure code of the operation.
-
-		.EXAMPLE
-			$Result = Set-NetAdapterDnsSuffix -DefaultDomain "contoso.com"
-
-			This sets contoso.com to be the first entry in the search list and does not modify any existing entries.
-
-		.EXAMPLE
-			$Result = Set-NetAdapterDnsSuffix -AppendPrimaryAndConnectionSpecificSuffixes
-
-			This removes all items in the Search List and uses primary and connection specific suffixes (like those received from DHCP).
-
-		.INPUTS
-			System.String[]
-
-		.OUTPUTS
-			System.Int32
-
-			The output is 0 for success and non-zero for failure. The exit code may correspond to a known error message that can be accessed through the
-			Get-NetAdapterErrorCode cmdlet.
-		
-
-		.NOTES
-            AUTHOR: Michael Haken
-			LAST UPDATE: 10/2/2017
-	#>
-	[CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = "HIGH")]
-	Param(
-		[Parameter(Mandatory = $true, ValueFromPipeline = $true, ParameterSetName = "Domains")]
-		[ValidateNotNullOrEmpty()]
-		[System.String[]]$Domains = @(),
-
-		[Parameter(Mandatory = $true, ParameterSetName = "UpdateDefault")]
-		[System.String]$DefaultDomain,
-		
-		[Parameter(ParameterSetName = "UpdateDefault")]
-		[System.Boolean]$Replace = $false,
-
-		[Parameter(ParameterSetName = "AppendPrimary", Mandatory = $true)]
-		[Switch]$AppendPrimaryAndConnectionSpecificSuffixes,
-
-		[Parameter(ParameterSetName = "AppendPrimary")]
-		[System.Boolean]$UseDomainNameDevolution,
-		
-		[Parameter()]
-		[Switch]$ReturnStringErrorMessage,
-
-		[Parameter()]
-		[Switch]$Force
-	)
-
-	Begin {
-		if (-not (Test-IsLocalAdmin)) {
-			throw "You must run this cmdlet with admin credentials."
-		}
-	}
-	
-	Process {
-		$Result = 65
-
-		switch ($PSCmdlet.ParameterSetName)
-		{
-			"AppendPrimary" {
-				$Path = "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters"
-
-				Write-Verbose "Updating registry at $Path."
-				$Prop = Get-ItemProperty -Path $Path -Name SearchList
-
-				if ($Prop -eq $null)
-				{
-					New-ItemProperty -Path $Path -Name SearchList -Value "" -PropertyType ([Microsoft.Win32.RegistryValueKind]::String) | Out-Null
-				}
-				else
-				{
-					# This will create the value if it doesn't exist, or update the existing property,
-					# but we can't specify a property type with it
-					Set-ItemProperty -Path $Path -Name SearchList -Value "" | Out-Null
-				}
-
-				if ($PSBoundParameters.ContainsKey("UseDomainNameDevolution")) {
-					$Prop = Get-ItemProperty -Path $Path -Name UseDomainNameDevolution
-
-					if ($Prop -eq $null)
-					{
-						New-ItemProperty -Path $Path -Name UseDomainNameDevolution ([System.Int32]$UseDomainNameDevolution) -PropertyType ([Microsoft.Win32.RegistryValueKind]::DWord) | Out-Null
-					}
-					else
-					{
-						Set-ItemProperty -Path $Path -Name UseDomainNameDevolution -Value ([System.Int32]$UseDomainNameDevolution) | Out-Null
-					}
-				}
-
-				$Result = 0
-
-				break
-			}
-			{$_ -in @("UpdateDefault", "Domains")} {
-
-				$NewDns = @()
-
-				# Just set the new domains to the provided ones
-				if ($PSCmdlet.ParameterSetName -eq "Domains")
-				{
-					$NewDns = $Domains
-				}
-				# Otherwise, if we're replacing, only add the new default domain
-				elseif ($Replace)
-				{
-					$NewDns += $DefaultDomain
-				}
-				# Otherwise, we got a default domain, but we want to move it to the top
-				else
-				{
-					[System.String[]]$Dns = (Get-CimClass -ClassName Win32_NetworkAdapterConfiguration).CimClassProperties["DNSDomainSuffixSearchOrder"].Value
-
-					$Index = [System.Array]::IndexOf($Dns, $DefaultDomain)
-
-					# Index will be -1 if not found, otherwise, we found it, so move it first
-					if ($Index -ge 0)
-					{
-						$NewDns += $Dns[$Index]
-					}
-
-					for ($i = 0; $i -lt $Dns.Length; $i++)
-					{
-						if ($i -ne $Index)
-						{
-							$NewDns += $Dns[$i]
-						}
-					}
-				}
-
-				Write-Verbose "Calling SetDNSSuffixSearchOrder CIM method."
-				$Result = (Invoke-CimMethod -ClassName Win32_NetworkAdapterConfiguration -MethodName SetDNSSuffixSearchOrder -Arguments @{"DNSDomainSuffixSearchOrder" = $NewDns}).ReturnValue
-				
-				break
-			}
-		}
-
-		if ($ReturnStringErrorMessage)
-		{
-			if ($script:NicErrorMessages.ContainsKey([System.UInt32]$Result) )
-			{
-				Write-Output -InputObject ($script:NicErrorMessages[[System.UInt32]$Result])
-			}
-			else
-			{
-				Write-Output -InputObject "$Result"
-			}
-		}
-		else
-		{
-			Write-Output -InputObject $Result
-		}
-	}
-
-	End {
-
-	}
-}
-
-Function Get-NetAdapterErrorCode {
-	<#
-		.SYNOPSIS 
-			Returns the string error message from a net adapter WMI method return value for the Win32_NetworkAdapterConfiguration class.
-
-		.DESCRIPTION
-			Attempts the find the string error message corresponding to the SetDNSSuffixSearchOrder method call on the Win32_NetworkAdapterConfiguration class. 
-			If the error message is not found, the error code is returned as a string. This cmdlet can be used with the Set-NetAdapterDnsSuffix cmdlet to translate
-			the return code.
-
-		.PARAMETER ErrorCode
-			The error code returned by the Win32_NetworkAdapterConfiguration class method.
-
-		.EXAMPLE
-			Get-NetAdapterErrorCode -ErrorCode 73
-
-			This returns the string "Invalid domain name".
-
-		.INPUTS
-			System.Int32
-
-		.OUTPUTS
-			System.String
-
-		.NOTES
-            AUTHOR: Michael Haken
-			LAST UPDATE: 10/2/2017
-	#>
-	[CmdletBinding()]
-	Param(
-		[Parameter(Mandatory = $true, ValueFromPipeline = $true, Position = 0)]
-		[System.UInt32]$ErrorCode
-	)
-
-	Begin {
-	}
-
-	Process {
-		if ($script:NicErrorMessages.ContainsKey($ErrorCode))
-		{
-			Write-Output -InputObject $script:NicErrorMessages[$ErrorCode]
-		}
-		else
-		{
-			Write-Output -InputObject "$ErrorCode"
-		}
-	}
-
-	End {
-	}
-}
-
-Function Set-LocalAdminPassword {
-	<#
-		.SYNOPSIS
-			Sets the local administrator password.
-
-		.DESCRIPTION
-			Sets the local administrator password and optionally enables the account if it is disabled.
-
-			If the password is not specified, the user will be prompted to enter the password when the cmdlet is run. The admin account is
-			identified by matching its SID to *-500, which should be unique for the local machine.
-
-		.PARAMETER Password
-			The new password for the local administrator account.
-
-		.PARAMETER EnableAccount
-			Specify to enable the local administrator account if it is disabled.
-
-		.INPUTS
-			System.Security.SecureString
-		
-		.OUTPUTS
-			None
-
-		.EXAMPLE 
-			Set-LocalAdminPassword -EnableAccount
-
-			The cmdlet will prompt the user to enter the new password.
-
-		.NOTES
-			AUTHOR: Michael Haken
-			LAST UPDATE: 10/23/2017
-	#>
-	[CmdletBinding()]
-	[OutputType()]
-    Param (
-        [Parameter(Position=0 , ValueFromPipeline=$true)]
-		[ValidateNotNull()]
-        [System.Security.SecureString]$Password,
-
-		[Parameter()]
-		[Switch]$EnableAccount
-    )
-    Begin {       
-    }
-    
-    Process {
-		$HostName = $env:COMPUTERNAME 
-        $Computer = [ADSI]"WinNT://$HostName,Computer" 
-
-		while ($Password -eq $null) 
-		{
-			$Password = Read-Host -AsSecureString -Prompt "Enter the new administrator password"
-		}
-
-		$Name = Get-LocalUser| Where-Object {$_.SID.Value -match "S-1-5-21-.*-500"} | Select-Object -ExpandProperty Name -First 1
-
-		Write-Verbose -Message "The local admin account is $Name"
-        $User = [ADSI]"WinNT://$HostName/$Name,User"
-        $PlainTextPass = Convert-SecureStringToString -SecureString $Password
-                
-		Write-Verbose -Message "Setting password."
-        $User.SetPassword($PlainTextPass)
-                
-		if ($EnableAccount) 
-		{
-			#The 0x0002 flag specifies that the account is disabled
-			#The binary AND operator will test the value to see if the bit is set, if it is, the account is disabled.
-			#Doing a binary OR would add the value to the flags, since it would not be present, the OR would add it
-			if ($User.UserFlags.Value -band "0x0002") 
-			{
-				Write-Verbose -Message "The account is current disabled with user flags $($User.UserFlags.Value)"
-				#The binary XOR will remove the flag, which enables the account, the XOR means that if both values have the bit set, the result does not
-				#If only 1 value has the bit set, then it will remain set, so we need to ensure that the bit is actually set with the -band above for the XOR to actually
-				#remove the disabled value
-				$User.UserFlags = $User.UserFlags -bxor "0x0002"
-				$User.SetInfo()
-			}
-		}
-    }
-    
-    End {        
-    }       
-}
-
-Function Set-SecurityPrivilege {
-	<#
-		.SYNOPSIS
-			Enables or disables security privileges for the current user's process.
-
-		.DESCRIPTION
-			This cmdlet enables or disables available security privileges for the current user.
-
-		.PARAMETER Privileges
-			The privileges to enable or disable.
-
-		.PARAMETER Enable
-			Enables the privileges.
-
-		.PARAMETER Disable
-			Disables the privileges.
-
-		.INPUTS
-			None
-		
-		.OUTPUTS
-			None
-
-		.EXAMPLE 
-			Set-SecurityPrivilege -Privileges SeSecurityPrivilege -Enable
-
-			Enables the SeSecurityPrivilege for the user running the cmdlet.
-
-		.NOTES
-			AUTHOR: Michael Haken
-			LAST UPDATE: 10/23/2017
-	#>
-	[CmdletBinding()]
-	[OutputType()]
-	Param(
-		## The privilege to adjust. This set is taken from
-		## http://msdn.microsoft.com/en-us/library/bb530716(VS.85).aspx
-		[Parameter(Mandatory = $true, ValueFromPipeline = $true, Position = 0)]
-		[ValidateSet(
-			"SeAssignPrimaryTokenPrivilege", "SeAuditPrivilege", "SeBackupPrivilege",
-			"SeChangeNotifyPrivilege", "SeCreateGlobalPrivilege", "SeCreatePagefilePrivilege",
-			"SeCreatePermanentPrivilege", "SeCreateSymbolicLinkPrivilege", "SeCreateTokenPrivilege",
-			"SeDebugPrivilege", "SeEnableDelegationPrivilege", "SeImpersonatePrivilege", "SeIncreaseBasePriorityPrivilege",
-			"SeIncreaseQuotaPrivilege", "SeIncreaseWorkingSetPrivilege", "SeLoadDriverPrivilege",
-			"SeLockMemoryPrivilege", "SeMachineAccountPrivilege", "SeManageVolumePrivilege",
-			"SeProfileSingleProcessPrivilege", "SeRelabelPrivilege", "SeRemoteShutdownPrivilege",
-			"SeRestorePrivilege", "SeSecurityPrivilege", "SeShutdownPrivilege", "SeSyncAgentPrivilege",
-			"SeSystemEnvironmentPrivilege", "SeSystemProfilePrivilege", "SeSystemtimePrivilege",
-			"SeTakeOwnershipPrivilege", "SeTcbPrivilege", "SeTimeZonePrivilege", "SeTrustedCredManAccessPrivilege",
-			"SeUndockPrivilege", "SeUnsolicitedInputPrivilege"
-		)]
-		[System.String[]]$Privileges,
-
-		[Parameter(ParameterSetName = "Enable", Mandatory = $true)]
-		[Switch]$Enable,
-
-		[Parameter(ParameterSetName = "Disable", Mandatory = $true)]
-		[Switch]$Disable
-	)
-
-	Begin {
-		if (!([System.Security.Principal.WindowsPrincipal][System.Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)) {
-			throw "Run the cmdlet with elevated credentials."
-		}
-
-		if (-not ([System.Management.Automation.PSTypeName]"BAMCIS.PowerShell.SecurityToken").Type) {
-            Add-Type -TypeDefinition $script:TokenSignature
-        }
-	}
-
-	Process {
-		foreach ($Privilege in $Privileges)
-		{
-			[BAMCIS.PowerShell.SecurityToken+TokPriv1Luid]$TokenPrivilege1Luid = New-Object BAMCIS.PowerShell.SecurityToken+TokPriv1Luid
-			$TokenPrivilege1Luid.Count = 1
-			$TokenPrivilege1Luid.Luid = 0
-
-			if ($Enable)
-			{
-				$TokenPrivilege1Luid.Attr = [BAMCIS.PowerShell.SecurityToken]::SE_PRIVILEGE_ENABLED
-			}
-			else 
-			{
-				$TokenPrivilege1Luid.Attr = [BAMCIS.PowerShell.SecurityToken]::SE_PRIVILEGE_DISABLED
-			}
-
-			[System.IntPtr]$TokenHandle = [System.IntPtr]::Zero
-            $Temp = $null
-
-			$ReturnValue = [BAMCIS.PowerShell.SecurityToken]::LookupPrivilegeValue($null, $Privilege, [ref]$Temp)
-            
-            if ($ReturnValue -eq $true)
-            {
-                $TokenPrivilege1Luid.Luid = $Temp
-
-			    $ReturnValue = [BAMCIS.PowerShell.SecurityToken]::OpenProcessToken([BAMCIS.PowerShell.SecurityToken]::GetCurrentProcess(), [BAMCIS.PowerShell.SecurityToken]::TOKEN_ADJUST_PRIVILEGES -BOR [BAMCIS.PowerShell.SecurityToken]::TOKEN_QUERY, [ref]$TokenHandle)
-  
-			    $DisableAllPrivileges = $false
-			    $ReturnValue = [BAMCIS.PowerShell.SecurityToken]::AdjustTokenPrivileges($TokenHandle, $DisableAllPrivileges, [ref]$TokenPrivilege1Luid, [System.Runtime.InteropServices.Marshal]::SizeOf($TokenPrivilege1Luid), [IntPtr]::Zero, [IntPtr]::Zero)
-
-			    if($ReturnValue -eq $null -or $ReturnValue -eq $false) 
-			    {
-				    throw (New-Object -TypeName System.Exception([System.ComponentModel.Win32Exception][System.Runtime.InteropServices.Marrshal]::GetLastWin32Error()))
-			    }
-            }
-            else
-            {
-                throw (New-Object -TypeName System.Exception([System.ComponentModel.Win32Exception][System.Runtime.InteropServices.Marrshal]::GetLastWin32Error()))
-            }
-		}
-	}
-
-	End {
-
-	}
-}
-
-Function Get-ComputerDomain {
-	<#
-		.SYNOPSIS
-			Retrieves the domain the computer is joined to.
-
-		.DESCRIPTION
-			This cmdlet retrieves the Active Directory domain the computer is joined to. If the computer is not domain joined, the computer name will be returned.
-
-		.PARAMETER ComputerName
-			The name of the computer to connect to and retrieve the domain information. If this parameter is omitted, information from the local computer is used.
-
-		.PARAMETER Credential
-			The credential to use to connect to the remote computer.
-
-		.PARAMETER CimSession
-			An existing CimSession to use to connect to a remote machine.
-
-		.INPUTS
-			None
-		
-		.OUTPUTS
-			System.String
-
-		.EXAMPLE 
-			Get-ComputerDomain
-
-			Gets the AD domain of the local computer.
-
-		.NOTES
-			AUTHOR: Michael Haken
-			LAST UPDATE: 10/23/2017
-	#>
-	[CmdletBinding(DefaultParameterSetName = "Computer")]
-	[OutputType([System.String])]
-	Param(
-		[Parameter(ParameterSetName = "Computer")]
-		[ValidateNotNullOrEmpty()]
-		[System.String]$ComputerName = [System.String]::Empty,
-
-		[Parameter(ParameterSetName = "Computer")]
-		[ValidateNotNull()]
-		[System.Management.Automation.Credential()]
-		[System.Management.Automation.PSCredential]$Credential = [System.Management.Automation.PSCredential]::Empty,
-
-		[Parameter(ParameterSetName = "Session")]
-		[ValidateNotNull()]
-        [Microsoft.Management.Infrastructure.CimSession]$CimSession = $null
-	)
-
-	Begin {
-
-	}
-
-	Process {
-		[System.Collections.Hashtable]$Splat = @{}
-		[System.Boolean]$EndSession = $false
-
-		switch ($PSCmdlet.ParameterSetName)
-		{
-			"Computer" {
-
-				if ($Credential -eq [System.Management.Automation.PSCredential]::Empty)
-				{
-					if (-not [System.String]::IsNullOrEmpty($ComputerName) -and $script:LocalNames -inotcontains $ComputerName)
-					{
-						$Splat.Add("ComputerName", $ComputerName)
-					}
-				}
-				else
-				{
-					if ([System.String]::IsNullOrEmpty($ComputerName))
-					{
-						$ComputerName = $env:COMPUTERNAME
-					}
-
-					$CimSession = New-CimSession -Credential $Credential -ComputerName $ComputerName
-					$Splat.Add("CimSession", $CimSession)
-					$EndSession = $true
-				}
-
-				break
-			}
-			"Session" {
-				$Splat.Add("CimSession", $CimSession)
-				break
-			}
-		}
-
-		Write-Output -InputObject (Get-CimInstance -ClassName Win32_ComputerSystem @Splat | Select-Object -ExpandProperty Domain)
-
-		if ($EndSession)
-		{
-			Remove-CimSession -CimSession $CimSession
-		}
-	}
-
-	End {
-
-	}
-}
 
 $script:IPv6Configs = @(
 	[PSCustomObject]@{Name="IPv6 Disabled On All Interfaces";Value="0xFFFFFFFF"},
@@ -8835,12 +9101,162 @@ namespace BAMCIS.PowerShell
 {
     public class SecurityToken
     {
+        public const int ANYSIZE_ARRAY = 1;
+
         public enum SECURITY_IMPERSONATION_LEVEL
         {
             SecurityAnonymous = 0,
             SecurityIdentification = 1,
             SecurityImpersonation = 2,
             SecurityDelegation = 3
+        }
+
+        public enum TOKEN_INFORMATION_CLASS
+        {
+            /// <summary>
+            /// The buffer receives a TOKEN_USER structure that contains the user account of the token.
+            /// </summary>
+            TokenUser = 1,
+
+            /// <summary>
+            /// The buffer receives a TOKEN_GROUPS structure that contains the group accounts associated with the token.
+            /// </summary>
+            TokenGroups,
+
+            /// <summary>
+            /// The buffer receives a TOKEN_PRIVILEGES structure that contains the privileges of the token.
+            /// </summary>
+            TokenPrivileges,
+
+            /// <summary>
+            /// The buffer receives a TOKEN_OWNER structure that contains the default owner security identifier (SID) for newly created objects.
+            /// </summary>
+            TokenOwner,
+
+            /// <summary>
+            /// The buffer receives a TOKEN_PRIMARY_GROUP structure that contains the default primary group SID for newly created objects.
+            /// </summary>
+            TokenPrimaryGroup,
+
+            /// <summary>
+            /// The buffer receives a TOKEN_DEFAULT_DACL structure that contains the default DACL for newly created objects.
+            /// </summary>
+            TokenDefaultDacl,
+
+            /// <summary>
+            /// The buffer receives a TOKEN_SOURCE structure that contains the source of the token. TOKEN_QUERY_SOURCE access is needed to retrieve this information.
+            /// </summary>
+            TokenSource,
+
+            /// <summary>
+            /// The buffer receives a TOKEN_TYPE value that indicates whether the token is a primary or impersonation token.
+            /// </summary>
+            TokenType,
+
+            /// <summary>
+            /// The buffer receives a SECURITY_IMPERSONATION_LEVEL value that indicates the impersonation level of the token. If the access token is not an impersonation token, the function fails.
+            /// </summary>
+            TokenImpersonationLevel,
+
+            /// <summary>
+            /// The buffer receives a TOKEN_STATISTICS structure that contains various token statistics.
+            /// </summary>
+            TokenStatistics,
+
+            /// <summary>
+            /// The buffer receives a TOKEN_GROUPS structure that contains the list of restricting SIDs in a restricted token.
+            /// </summary>
+            TokenRestrictedSids,
+
+            /// <summary>
+            /// The buffer receives a DWORD value that indicates the Terminal Services session identifier that is associated with the token. 
+            /// </summary>
+            TokenSessionId,
+
+            /// <summary>
+            /// The buffer receives a TOKEN_GROUPS_AND_PRIVILEGES structure that contains the user SID, the group accounts, the restricted SIDs, and the authentication ID associated with the token.
+            /// </summary>
+            TokenGroupsAndPrivileges,
+
+            /// <summary>
+            /// Reserved.
+            /// </summary>
+            TokenSessionReference,
+
+            /// <summary>
+            /// The buffer receives a DWORD value that is nonzero if the token includes the SANDBOX_INERT flag.
+            /// </summary>
+            TokenSandBoxInert,
+
+            /// <summary>
+            /// Reserved.
+            /// </summary>
+            TokenAuditPolicy,
+
+            /// <summary>
+            /// The buffer receives a TOKEN_ORIGIN value. 
+            /// </summary>
+            TokenOrigin,
+
+            /// <summary>
+            /// The buffer receives a TOKEN_ELEVATION_TYPE value that specifies the elevation level of the token.
+            /// </summary>
+            TokenElevationType,
+
+            /// <summary>
+            /// The buffer receives a TOKEN_LINKED_TOKEN structure that contains a handle to another token that is linked to this token.
+            /// </summary>
+            TokenLinkedToken,
+
+            /// <summary>
+            /// The buffer receives a TOKEN_ELEVATION structure that specifies whether the token is elevated.
+            /// </summary>
+            TokenElevation,
+
+            /// <summary>
+            /// The buffer receives a DWORD value that is nonzero if the token has ever been filtered.
+            /// </summary>
+            TokenHasRestrictions,
+
+            /// <summary>
+            /// The buffer receives a TOKEN_ACCESS_INFORMATION structure that specifies security information contained in the token.
+            /// </summary>
+            TokenAccessInformation,
+
+            /// <summary>
+            /// The buffer receives a DWORD value that is nonzero if virtualization is allowed for the token.
+            /// </summary>
+            TokenVirtualizationAllowed,
+
+            /// <summary>
+            /// The buffer receives a DWORD value that is nonzero if virtualization is enabled for the token.
+            /// </summary>
+            TokenVirtualizationEnabled,
+
+            /// <summary>
+            /// The buffer receives a TOKEN_MANDATORY_LABEL structure that specifies the token's integrity level. 
+            /// </summary>
+            TokenIntegrityLevel,
+
+            /// <summary>
+            /// The buffer receives a DWORD value that is nonzero if the token has the UIAccess flag set.
+            /// </summary>
+            TokenUIAccess,
+
+            /// <summary>
+            /// The buffer receives a TOKEN_MANDATORY_POLICY structure that specifies the token's mandatory integrity policy.
+            /// </summary>
+            TokenMandatoryPolicy,
+
+            /// <summary>
+            /// The buffer receives the token's logon security identifier (SID).
+            /// </summary>
+            TokenLogonSid,
+
+            /// <summary>
+            /// The maximum value for this enumeration
+            /// </summary>
+            MaxTokenInfoClass
         }
 
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -8851,8 +9267,54 @@ namespace BAMCIS.PowerShell
 	        public int Attr;
         }
 
+        [StructLayout(LayoutKind.Sequential)]
+        public struct TOKEN_USER 
+        { 
+            public SID_AND_ATTRIBUTES User; 
+        }
+        
+        [StructLayout(LayoutKind.Sequential)]
+        public struct TOKEN_GROUPS
+        {
+            public UInt32 GroupCount;
+
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = ANYSIZE_ARRAY)]
+            public SID_AND_ATTRIBUTES[] Groups;
+        }; 
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct SID_AND_ATTRIBUTES 
+        { 
+            public IntPtr Sid; 
+            public UInt32 Attributes; 
+        } 
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct LUID
+        {
+	        public UInt32 LowPart;
+	        public UInt32 HighPart;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct LUID_AND_ATTRIBUTES 
+        {
+	        public LUID Luid;
+	        public UInt32 Attributes;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct TOKEN_PRIVILEGES 
+        {
+	        public UInt32 PrivilegeCount;
+
+	        [MarshalAs(UnmanagedType.ByValArray, SizeConst=ANYSIZE_ARRAY)]
+	        public LUID_AND_ATTRIBUTES[] Privileges;
+        }
+
         public const int SE_PRIVILEGE_DISABLED = 0x00000000;
         public const int SE_PRIVILEGE_ENABLED = 0x00000002;
+        public const UInt32 SE_GROUP_LOGON_ID = 0xC0000000;
         public const int TOKEN_QUERY = 0x00000008;
         public const int TOKEN_ADJUST_PRIVILEGES = 0x00000020;
 
@@ -8872,31 +9334,30 @@ namespace BAMCIS.PowerShell
             TOKEN_ADJUST_SESSIONID);
 
         public const string SE_TIME_ZONE_NAMETEXT = "SeTimeZonePrivilege";
-        public const int ANYSIZE_ARRAY = 1;
-
-        [StructLayout(LayoutKind.Sequential)]
-        public struct LUID
-        {
-	        public UInt32 LowPart;
-	        public UInt32 HighPart;
-        }
-
-        [StructLayout(LayoutKind.Sequential)]
-        public struct LUID_AND_ATTRIBUTES 
-        {
-	        public LUID Luid;
-	        public UInt32 Attributes;
-        }
-
-        public struct TOKEN_PRIVILEGES 
-        {
-	        public UInt32 PrivilegeCount;
-	        [MarshalAs(UnmanagedType.ByValArray, SizeConst=ANYSIZE_ARRAY)]
-	        public LUID_AND_ATTRIBUTES [] Privileges;
-        }
+        
 
         [DllImport("advapi32.dll", SetLastError=true)]
-        public extern static bool DuplicateToken(IntPtr ExistingTokenHandle, int SECURITY_IMPERSONATION_LEVEL, out IntPtr DuplicateTokenHandle);
+		public static extern bool GetTokenInformation( 
+		    IntPtr TokenHandle,
+			TOKEN_INFORMATION_CLASS TokenInformationClass,
+			IntPtr TokenInformation,
+			UInt32 TokenInformationLength,
+			out UInt32 ReturnLength
+		);
+
+        [DllImport("advapi32", SetLastError=true, CharSet=CharSet.Auto)]
+		public static extern bool ConvertSidToStringSid(
+		    IntPtr pSID,
+			[In,Out,MarshalAs(UnmanagedType.LPTStr)] ref string pStringSid
+	    );
+
+
+        [DllImport("advapi32.dll", SetLastError=true)]
+        public extern static bool DuplicateToken(
+            IntPtr ExistingTokenHandle, 
+            Int32 SECURITY_IMPERSONATION_LEVEL, 
+            out IntPtr DuplicateTokenHandle
+        );
 
         [DllImport("advapi32.dll", SetLastError=true)]
         [return: MarshalAs(UnmanagedType.Bool)]
@@ -8907,22 +9368,40 @@ namespace BAMCIS.PowerShell
 
         [DllImport("advapi32.dll", SetLastError=true)]
         [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool OpenProcessToken(IntPtr ProcessHandle, UInt32 DesiredAccess, out IntPtr TokenHandle);
+        public static extern bool OpenProcessToken(
+            IntPtr ProcessHandle, 
+            UInt32 DesiredAccess, 
+            out IntPtr TokenHandle
+        );
 
         [DllImport("advapi32.dll", SetLastError = true)]
-        public static extern bool LookupPrivilegeValue(string host, string name, ref long pluid);
+        public static extern bool LookupPrivilegeValue(
+            string host, 
+            string name, 
+            ref long pluid
+        );
 
-        [DllImport("kernel32.dll", ExactSpelling = true)]
+        [DllImport("kernel32.dll", ExactSpelling = true, SetLastError = true)]
         public static extern IntPtr GetCurrentProcess();
 
         [DllImport("advapi32.dll", ExactSpelling = true, SetLastError = true)]
-        public static extern bool AdjustTokenPrivileges(IntPtr htok, bool disall, ref TokPriv1Luid newst, int len, IntPtr prev, IntPtr relen);
+        public static extern bool AdjustTokenPrivileges(
+            IntPtr htok, 
+            bool disall, 
+            ref TokPriv1Luid newst, 
+            Int32 len, 
+            IntPtr prev, 
+            IntPtr relen
+        );
 
-        [DllImport( "kernel32.dll", CharSet = CharSet.Auto )]
+        [DllImport( "kernel32.dll", CharSet = CharSet.Auto, SetLastError = true )]
         public static extern bool CloseHandle(IntPtr handle);
 
         [DllImport("advapi32.dll", SetLastError = true)]
         public static extern bool RevertToSelf();  
+
+        [DllImport("kernel32.dll")]
+        static extern IntPtr LocalFree(IntPtr hMem);
 
 		public static bool AddPrivilege(string privilege)
 		{
@@ -8981,7 +9460,7 @@ using System.Text;
 using System.Runtime.InteropServices;
 using System.ComponentModel;
 
-namespace Bamcis.Lsa
+namespace BAMCIS.PowerShell
 {
     public class LSAUtil
     {
@@ -9186,7 +9665,7 @@ using System.Collections;
 using System.Management.Automation;
 using System.Reflection;
 
-namespace BAMCIS
+namespace BAMCIS.PowerShell
 {
     public static class ExtensionMethods 
     {

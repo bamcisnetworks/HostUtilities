@@ -2,6 +2,15 @@
 
 ## Revision History
 
+### 1.1.3.1
+Added Rename-FileOrDirectory. 
+		
+Added OutputType to all cmdlets. Updated all cmdlets to use the Write-Log function for displaying output and writing to an optional log file. 
+		
+Renamed:
+		Set-SecurityPrivilege to Set-TokenPrivilege
+		Get-GroupsFromToken to Get-TokenGroups
+
 ### 1.1.3.0
 Added functions:
 		Set-LocalAdminPassword
