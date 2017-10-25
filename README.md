@@ -2,6 +2,9 @@
 
 ## Revision History
 
+### 1.1.3.2
+Fixed Path parameter attribute for Write-Log. Added cmdlet New-Credential.
+
 ### 1.1.3.1
 Added Rename-FileOrDirectory. 
 		

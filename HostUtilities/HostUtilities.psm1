@@ -2206,7 +2206,6 @@ Function Write-Log {
 		[System.Management.Automation.ErrorRecord]$ErrorRecord,
 
 		[Parameter()]
-		[ValidateNotNullOrEmpty()]
 		[System.String]$Path,
 
 		[Parameter()]
@@ -3487,7 +3486,8 @@ Function New-RandomPassword {
 			Generates a new random password.
 
 		.NOTES
-			None
+			AUTHOR: Michael Haken
+			LAST UPDATE: 10/25/2017
 	#>
     [CmdletBinding()]
 	[OutputType([System.String], [System.Security.SecureString])]
@@ -3605,7 +3605,8 @@ Function New-EncryptedPassword {
 			Encrypts the password with the calling user's credentials.
 
 		.NOTES
-			None
+			AUTHOR: Michael Haken
+			LAST UPDATE: 10/25/2017
 	#>
     [CmdletBinding(DefaultParameterSetName = "SecureString")]
 	[OutputType([System.String])]
@@ -3666,7 +3667,8 @@ Function Get-EncryptedPassword {
 			Unencrypts the password stored in the file with the calling user's credentials.
 
 		.NOTES
-			None
+			AUTHOR: Michael Haken
+			LAST UPDATE: 10/25/2017
 	#>
 	[CmdletBinding()]
 	[OutputType([System.Security.SecureString])]
@@ -3689,6 +3691,83 @@ Function Get-EncryptedPassword {
 
     End {       
     }
+}
+
+Function New-Credential {
+	<#
+		.SYNOPSIS
+			Creates an new PSCredential object.
+
+		.DESCRIPTION
+			The cmdlet takes a username and password and creates a credential object. If no password is supplied, the user is prompted to enter a password.
+
+		.PARAMETER UserName
+			The username for the credential.
+
+		.PARAMETER Password
+			The plain text password for the credential.
+
+		.PARAMETER SecurePassword
+			The password as a SecureString.
+
+		.EXAMPLE
+			New-Credential -UserName "contoso\john.smith" -Password "@$3scureP@$$w0rd"
+
+			This creates a new PSCredential object with the supplied parameters.
+
+		.EXAMPLE
+			New-Credential -UserName "contoso\john.smith"
+
+			This example will prompt the user to enter a password at the command line and creates a new PSCredential object.
+
+		.INPUTS
+			None
+
+		.OUTPUTS
+			System.Management.Automation.PSCredential
+
+		.NOTES
+			AUTHOR: Michael Haken
+			LAST UPDATE: 10/25/2017
+	#>
+	[CmdletBinding(DefaultParameterSetName = "Secure")]
+	[OutputType([System.Management.Automation.PSCredential])]
+	Param(
+		[Parameter(Mandatory = $true, Position = 0)]
+		[ValidateNotNullOrEmpty()]
+		[System.String]$UserName,
+
+		[Parameter(Mandatory = $true, ParameterSetName = "Plain", Position = 1)]
+		[ValidateNotNull()]
+		[System.String]$Password,
+
+		[Parameter(Mandatory = $true, ParameterSetName = "Secure", Position = 1)]
+		[ValidateNotNull()]
+		[System.Security.SecureString]$SecurePassword
+	)
+
+	Begin {
+	}
+
+	Process {
+		if ($PSCmdlet.ParameterSetName -eq "Secure" -and $SecurePassword -eq $null)
+		{
+			while ($SecurePassword -eq $null)
+			{
+				$SecurePassword = Read-Host -Prompt "Enter password" -AsSecureString
+			}
+		}
+
+		if ($PSCmdlet.ParameterSetName -eq "Plain")
+		{
+			$SecurePassword = ConvertTo-SecureString -String $Password -AsPlainText -Force
+		}
+
+		Write-Output -InputObject (New-Object -TypeName System.Management.Automation.PSCredential($UserName, $SecurePassword))
+	}
+
+	End {
+	}
 }
 
 #endregion
